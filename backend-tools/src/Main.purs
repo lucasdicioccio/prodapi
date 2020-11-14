@@ -7,7 +7,7 @@ import Affjax.ResponseFormat as AXRF
 import Data.Float.Parse (parseFloat)
 import Data.Either (hush, Either(..))
 import Data.Maybe (Maybe(..))
-import Data.List (List(..))
+import Data.List (List(..), filter, toUnfoldable)
 import Data.Tuple (Tuple(..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
@@ -42,9 +42,9 @@ type Labels = List LabelPair
 
 data Line
  = MetricLine MetricName Labels MetricValue (Maybe MetricTimestamp)
- | CommentLine String
- | HelpLine MetricName String
  | TypeLine MetricName TypeName
+ | HelpLine MetricName String
+ | CommentLine String
  | OtherLine String
 
 derive instance genericLine :: Generic Line _
@@ -67,14 +67,21 @@ promLine =
 metric :: Parser String Line
 metric = do
   n <- metricName
-  _ <- char '{'
-  pairs <- labelPair `sepEndBy` string ","
-  _ <- char '}'
-  _ <- char ' '
+  pairs <- option mempty labels
+  _ <- spacing
   val <- metricValue
-  tst <- optionMaybe metricTimestamp
+  tst <- optionMaybe (spacing *> metricTimestamp)
   _ <- restOfLine
   pure $ MetricLine n pairs val tst
+
+spacing :: Parser String Unit
+spacing = skipMany1 (char ' ')
+
+labels :: Parser String (List LabelPair)
+labels = do
+  char '{' *> lbls <* char '}'
+  where
+    lbls = labelPair `sepEndBy` string ","
 
 labelPair :: Parser String LabelPair
 labelPair = do
@@ -112,7 +119,7 @@ boundedFloat = do
     _        -> fail $ "could not parse float from val: " <> val
 
 metricTimestamp :: Parser String MetricTimestamp
-metricTimestamp = fromCharArray <$> many (oneOf $ toCharArray "1234567890")
+metricTimestamp = fromCharArray <$> many (oneOf $ toCharArray "1234567890-")
 
 promBasicName :: Parser String (Array Char)
 promBasicName =
@@ -120,13 +127,13 @@ promBasicName =
 
 promQuotedString :: Parser String (Array Char)
 promQuotedString =
-  many (nonEscapedChar <|> (char '\\' *> escapedChar))
+  many (try escapedChar <|> otherChar)
   where
     escapedChar :: Parser String Char
-    escapedChar = oneOf $ toCharArray "\\\"\n"
+    escapedChar = char '\\' *> oneOf (toCharArray "\\\"\n")
 
-    nonEscapedChar :: Parser String Char
-    nonEscapedChar = noneOf $ toCharArray "\\\"\n"
+    otherChar :: Parser String Char
+    otherChar = noneOf $ toCharArray "\""
 
 
 helpLine :: Parser String Line
@@ -200,10 +207,29 @@ render st =
                 [ HH.code_ [ HH.text res ]
                 ]
             , case runParser res promDoc of
-                Right pdoc -> HH.code_ [ HH.text $ show pdoc ]
                 Left err -> HH.code_ [ HH.text $ show err ]
+                Right pdoc -> HH.div_ [ renderPromDoc pdoc , HH.text $ show pdoc ]
             ]
     ]
+
+renderPromDoc :: forall m. PromDoc -> H.ComponentHTML Action () m
+renderPromDoc metrics =
+  HH.ul_
+    $ toUnfoldable
+    $ map renderPromLine
+    $ filter isMetric metrics
+
+  where
+    isMetric (MetricLine _ _ _ _) = true
+    isMetric _                    = false
+
+renderPromLine :: forall m. Line -> H.ComponentHTML Action () m
+renderPromLine = case _ of
+  MetricLine n lbls val _ -> HH.li_ [ HH.p_ [ HH.text n ]
+                                    , HH.p_ [ HH.text $ show lbls ]
+                                    , HH.p_ [ HH.text $ show val ]
+                                    ]
+  _                       -> HH.div_ []
 
 renderGetStatus :: forall m. State -> H.ComponentHTML Action () m
 renderGetStatus st =
