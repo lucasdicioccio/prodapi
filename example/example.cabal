@@ -18,6 +18,7 @@ extra-source-files:  CHANGELOG.md
 
 executable example
   main-is:             Main.hs
+  ghc-options:         -rtsopts -threaded -O2
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.13 && <4.14

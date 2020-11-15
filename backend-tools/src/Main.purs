@@ -4,9 +4,9 @@ import Prelude
 
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
-import Data.Either (hush, Either(..))
-import Data.Maybe (Maybe(..))
-import Data.List (filter, toUnfoldable)
+import Data.Either (hush)
+import Data.Maybe (Maybe(..), maybe)
+import Data.List (List(..), filter, toUnfoldable, singleton)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
@@ -18,7 +18,7 @@ import Halogen.VDom.Driver (runUI)
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Text.Parsing.Parser (runParser)
 
-import Parsing.Prometheus (promDoc, PromDoc, Line(..))
+import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricValue)
 
 main :: Effect Unit
 main = runHalogenAff do
@@ -26,10 +26,9 @@ main = runHalogenAff do
   runUI component unit body
 
 type State =
-  { loading :: Boolean
-  , username :: String
-  , statusResult :: Maybe String
+  { statusResult :: Maybe String
   , metricsResult :: Maybe String
+  , metricsHistory :: List PromDoc
   }
 
 data Action
@@ -45,7 +44,7 @@ component =
     }
 
 initialState :: forall i. i -> State
-initialState _ = { loading: false, username: "", statusResult: Nothing, metricsResult: Nothing }
+initialState _ = { statusResult: Nothing, metricsResult: Nothing, metricsHistory: Nil }
 
 render :: forall m. State -> H.ComponentHTML Action () m
 render st =
@@ -62,23 +61,14 @@ render st =
                 [ HH.code_ [ HH.text res ] ]
             ]
     , HH.div_
-        case st.metricsResult of
-          Nothing -> []
-          Just res ->
-            [ HH.h2_
-                [ HH.text "Metrics:" ]
-            , HH.pre_
-                [ HH.code_ [ HH.text res ]
-                ]
-            , case runParser res promDoc of
-                Left err -> HH.code_ [ HH.text $ show err ]
-                Right pdoc -> HH.div_ [ renderPromDoc pdoc , HH.text $ show pdoc ]
-            ]
+        $ toUnfoldable
+        $ map renderPromDoc
+        $ st.metricsHistory
     ]
 
 renderPromDoc :: forall m. PromDoc -> H.ComponentHTML Action () m
 renderPromDoc metrics =
-  HH.ul_
+  HH.table_
     $ toUnfoldable
     $ map renderPromLine
     $ filter isMetric metrics
@@ -89,17 +79,34 @@ renderPromDoc metrics =
 
 renderPromLine :: forall m. Line -> H.ComponentHTML Action () m
 renderPromLine = case _ of
-  MetricLine n lbls val _ -> HH.li_ [ HH.p_ [ HH.text n ]
-                                    , HH.p_ [ HH.text $ show lbls ]
-                                    , HH.p_ [ HH.text $ show val ]
+  MetricLine n lbls val _ -> HH.tr_ [ HH.td_ [ HH.text n ]
+                                    , HH.td_ [ renderLabels lbls ]
+                                    , HH.td_ [ renderValue val ]
                                     ]
-  _                       -> HH.div_ []
+  _                       -> HH.text ""
+
+renderLabels :: forall m. Labels -> H.ComponentHTML Action () m
+renderLabels labels =
+  HH.div_
+    $ toUnfoldable
+    $ map renderLabelPair labels
+
+renderLabelPair :: forall m. LabelPair -> H.ComponentHTML Action () m
+renderLabelPair pair =
+  HH.span_
+    [ HH.strong_ [ HH.text $ pairName pair ]
+    , HH.text ": "
+    , HH.text $ pairValue pair
+    ]
+
+renderValue :: forall m. MetricValue -> H.ComponentHTML Action () m
+renderValue val =
+  HH.strong_ [ HH.text $ show val ]
 
 renderGetStatus :: forall m. State -> H.ComponentHTML Action () m
 renderGetStatus st =
   HH.button
-    [ HP.disabled st.loading
-    , HP.type_ HP.ButtonSubmit
+    [ HP.type_ HP.ButtonSubmit
     , HE.onClick \ev -> Just (MakeStatusRequest ev)
     ]
     [ HH.text "Status" ]
@@ -107,8 +114,7 @@ renderGetStatus st =
 renderGetMetrics :: forall m. State -> H.ComponentHTML Action () m
 renderGetMetrics st =
   HH.button
-    [ HP.disabled st.loading
-    , HP.type_ HP.ButtonSubmit
+    [ HP.type_ HP.ButtonSubmit
     , HE.onClick \ev -> Just (MakeMetricsRequest ev)
     ]
     [ HH.text "Metrics" ]
@@ -117,12 +123,17 @@ handleAction :: forall output m. MonadAff m => Action -> H.HalogenM State Action
 handleAction = case _ of
 
   MakeStatusRequest event -> do
-    H.modify_ _ { loading = true }
     response <- H.liftAff $ AX.get AXRF.string ("/status")
-    H.modify_ _ { loading = false, statusResult = map _.body (hush response) }
+    H.modify_ _ { statusResult = map _.body (hush response) }
 
   MakeMetricsRequest event -> do
-    H.modify_ _ { loading = true }
     response <- H.liftAff $ AX.get AXRF.string ("/metrics")
-    H.modify_ _ { loading = false, metricsResult = map _.body (hush response) }
+    let prom = hush response >>= parseBody
+    H.modify_ \state -> state { metricsResult = map _.body (hush response)
+                              , metricsHistory =
+                                  maybe Nil singleton prom <> state.metricsHistory
+                              }
+
+parseBody :: forall t. { body :: String | t } -> Maybe PromDoc
+parseBody = hush <<< (flip runParser) promDoc <<< _.body
 

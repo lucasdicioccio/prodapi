@@ -6,6 +6,8 @@ module Parsing.Prometheus
  , MetricName
  , Labels
  , LabelPair
+ , pairName
+ , pairValue
  , LabelName
  , LabelValue
  , TypeName
@@ -20,7 +22,7 @@ import Control.Alt ((<|>))
 import Data.Float.Parse (parseFloat)
 import Data.Array (many)
 import Data.String.CodeUnits (fromCharArray, toCharArray)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Data.List (List)
 import Data.Maybe (Maybe(..))
 import Data.Generic.Rep (class Generic)
@@ -38,6 +40,12 @@ type MetricTimestamp = String
 
 type LabelPair = Tuple LabelName LabelValue
 type Labels = List LabelPair
+
+pairName :: LabelPair -> LabelName
+pairName = fst
+
+pairValue :: LabelPair -> LabelValue
+pairValue = snd
 
 data Line
  = MetricLine MetricName Labels MetricValue (Maybe MetricTimestamp)
