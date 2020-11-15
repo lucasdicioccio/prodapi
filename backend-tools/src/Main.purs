@@ -6,7 +6,8 @@ import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Data.Either (hush)
 import Data.Maybe (Maybe(..), maybe)
-import Data.List (List(..), filter, toUnfoldable, singleton)
+import Data.List (List(..))
+import Data.List as List
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
@@ -18,7 +19,26 @@ import Halogen.VDom.Driver (runUI)
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Text.Parsing.Parser (runParser)
 
-import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricValue)
+import Data.Tuple (Tuple(..))
+import Data.Map (Map)
+import Data.Map as Map
+import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
+
+type PromData =
+  { metrics :: Map (Tuple MetricName Labels) MetricValue
+  , helps :: Map MetricName String
+  }
+
+fromPromDoc :: PromDoc -> PromData
+fromPromDoc metrics =
+  { metrics: Map.fromFoldable $ List.catMaybes $ map toMetric metrics
+  , helps: Map.fromFoldable $ List.catMaybes $ map toHelp metrics
+  }
+  where
+    toMetric (MetricLine n lbls val _) = let key = Tuple n lbls in Just $ Tuple key val
+    toMetric _                         = Nothing
+    toHelp (HelpLine n s)              = Just (Tuple n s)
+    toHelp _                           = Nothing
 
 main :: Effect Unit
 main = runHalogenAff do
@@ -28,14 +48,16 @@ main = runHalogenAff do
 type State =
   { statusResult :: Maybe String
   , metricsResult :: Maybe String
-  , metricsHistory :: List PromDoc
+  , metricsHistory :: List PromData
   }
 
 data Action
   = MakeStatusRequest MouseEvent
   | MakeMetricsRequest MouseEvent
 
-component :: forall query input output m. MonadAff m => H.Component HH.HTML query input output m
+component
+  :: forall query input output m. MonadAff m
+  => H.Component HH.HTML query input output m
 component =
   H.mkComponent
     { initialState
@@ -61,34 +83,33 @@ render st =
                 [ HH.code_ [ HH.text res ] ]
             ]
     , HH.div_
-        $ toUnfoldable
-        $ map renderPromDoc
+        $ List.toUnfoldable
+        $ map renderPromData
         $ st.metricsHistory
     ]
 
-renderPromDoc :: forall m. PromDoc -> H.ComponentHTML Action () m
-renderPromDoc metrics =
+renderPromData :: forall m. PromData -> H.ComponentHTML Action () m
+renderPromData dat =
   HH.table_
-    $ toUnfoldable
-    $ map renderPromLine
-    $ filter isMetric metrics
+    $ List.toUnfoldable
+    $ map (\(Tuple (Tuple n lbls) val) -> renderPromLine n lbls val)
+    $ Map.toUnfoldable 
+    $ dat.metrics
 
   where
     isMetric (MetricLine _ _ _ _) = true
     isMetric _                    = false
 
-renderPromLine :: forall m. Line -> H.ComponentHTML Action () m
-renderPromLine = case _ of
-  MetricLine n lbls val _ -> HH.tr_ [ HH.td_ [ HH.text n ]
-                                    , HH.td_ [ renderLabels lbls ]
-                                    , HH.td_ [ renderValue val ]
-                                    ]
-  _                       -> HH.text ""
+    renderPromLine n lbls val =
+      HH.tr_ [ HH.td_ [ HH.text n ]
+             , HH.td_ [ renderLabels lbls ]
+             , HH.td_ [ renderValue val ]
+             ]
 
 renderLabels :: forall m. Labels -> H.ComponentHTML Action () m
 renderLabels labels =
   HH.div_
-    $ toUnfoldable
+    $ List.toUnfoldable
     $ map renderLabelPair labels
 
 renderLabelPair :: forall m. LabelPair -> H.ComponentHTML Action () m
@@ -131,7 +152,7 @@ handleAction = case _ of
     let prom = hush response >>= parseBody
     H.modify_ \state -> state { metricsResult = map _.body (hush response)
                               , metricsHistory =
-                                  maybe Nil singleton prom <> state.metricsHistory
+                                  maybe Nil (List.singleton <<< fromPromDoc) prom <> state.metricsHistory
                               }
 
 parseBody :: forall t. { body :: String | t } -> Maybe PromDoc

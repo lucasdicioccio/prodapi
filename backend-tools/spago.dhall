@@ -9,6 +9,7 @@ You can edit this file as you like.
   , "effect"
   , "generics-rep"
   , "halogen"
+  , "ordered-collections"
   , "parseint"
   , "parsing"
   , "psci-support"
