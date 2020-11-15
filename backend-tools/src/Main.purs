@@ -19,7 +19,11 @@ import Halogen.VDom.Driver (runUI)
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Text.Parsing.Parser (runParser)
 
+import Data.Foldable (fold)
+import Data.Set (Set)
+import Data.Set as Set
 import Data.Tuple (Tuple(..))
+import Data.Tuple as Tuple
 import Data.Map (Map)
 import Data.Map as Map
 import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
@@ -82,29 +86,36 @@ render st =
             , HH.pre_
                 [ HH.code_ [ HH.text res ] ]
             ]
-    , HH.div_
-        $ List.toUnfoldable
-        $ map renderPromData
+    , renderPromHistory
         $ st.metricsHistory
     ]
 
-renderPromData :: forall m. PromData -> H.ComponentHTML Action () m
-renderPromData dat =
+renderPromHistory :: forall m. List PromData -> H.ComponentHTML Action () m
+renderPromHistory history =
   HH.table_
-    $ List.toUnfoldable
-    $ map (\(Tuple (Tuple n lbls) val) -> renderPromLine n lbls val)
-    $ Map.toUnfoldable 
-    $ dat.metrics
+    $ map (\key -> renderPromLine key)
+    $ Set.toUnfoldable
+    $ allKeys
 
   where
-    isMetric (MetricLine _ _ _ _) = true
-    isMetric _                    = false
+    allKeys :: Set (Tuple MetricName Labels)
+    allKeys = fold (map (Map.keys <<< _.metrics) history)
 
-    renderPromLine n lbls val =
+    renderPromLine key =
+      let n    = Tuple.fst key
+          lbls = Tuple.snd key
+          timeseries = map (Map.lookup key <<< _.metrics) history
+      in
       HH.tr_ [ HH.td_ [ HH.text n ]
              , HH.td_ [ renderLabels lbls ]
-             , HH.td_ [ renderValue val ]
+             , HH.td_ [ renderValues timeseries ]
              ]
+
+    renderValues xs =
+      HH.div_
+        $ List.toUnfoldable
+        $ map (\v -> HH.span_ [ HH.text $ v <> " "])
+        $ map (maybe "NA" show) xs
 
 renderLabels :: forall m. Labels -> H.ComponentHTML Action () m
 renderLabels labels =
@@ -150,9 +161,9 @@ handleAction = case _ of
   MakeMetricsRequest event -> do
     response <- H.liftAff $ AX.get AXRF.string ("/metrics")
     let prom = hush response >>= parseBody
+    let promlist = maybe Nil (\dat -> List.singleton $ fromPromDoc dat) prom
     H.modify_ \state -> state { metricsResult = map _.body (hush response)
-                              , metricsHistory =
-                                  maybe Nil (List.singleton <<< fromPromDoc) prom <> state.metricsHistory
+                              , metricsHistory = promlist <> state.metricsHistory
                               }
 
 parseBody :: forall t. { body :: String | t } -> Maybe PromDoc
