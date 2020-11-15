@@ -52,6 +52,7 @@ main = runHalogenAff do
 type State =
   { statusResult :: Maybe String
   , metricsResult :: Maybe String
+  , nsamples :: Int
   , metricsHistory :: List PromData
   }
 
@@ -70,7 +71,7 @@ component =
     }
 
 initialState :: forall i. i -> State
-initialState _ = { statusResult: Nothing, metricsResult: Nothing, metricsHistory: Nil }
+initialState _ = { statusResult: Nothing, metricsResult: Nothing, nsamples: 30, metricsHistory: Nil }
 
 render :: forall m. State -> H.ComponentHTML Action () m
 render st =
@@ -163,7 +164,8 @@ handleAction = case _ of
     let prom = hush response >>= parseBody
     let promlist = maybe Nil (\dat -> List.singleton $ fromPromDoc dat) prom
     H.modify_ \state -> state { metricsResult = map _.body (hush response)
-                              , metricsHistory = promlist <> state.metricsHistory
+                              , metricsHistory = List.take state.nsamples
+                                  $ promlist <> state.metricsHistory
                               }
 
 parseBody :: forall t. { body :: String | t } -> Maybe PromDoc
