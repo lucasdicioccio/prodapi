@@ -28,7 +28,7 @@ import Halogen.VDom.Driver (runUI)
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Text.Parsing.Parser (runParser)
 
-import Data.Foldable (fold, minimum, maximum)
+import Data.Foldable (fold, minimum, maximum, sum)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
@@ -61,6 +61,7 @@ main = runHalogenAff do
 data ChartKind
   = Samples
   | DiffSamples
+  | Smooth
 
 data ChartSpec
   = SingleTimeSeries ChartKind MetricName Labels
@@ -158,6 +159,7 @@ renderPromHistory history chartspecs =
         , case k of
             Samples -> renderChartTimeseries timeseries
             DiffSamples -> renderChartDiffTimeseries timeseries
+            Smooth -> renderChartSmoothTimeseries timeseries
         , renderUnZoomButton n lbls
         , renderCycleChartSpec n lbls
         ]
@@ -315,6 +317,52 @@ renderPromHistory history chartspecs =
                   ]
                ])
         $ reals
+    renderChartSmoothTimeseries xs =
+     let samples = List.catMaybes xs
+         average zs = (sum zs) / (toNumber $ List.length zs)
+         reals = 
+           map average
+           $ mapWithIndex (\idx _ -> List.take 30 $ List.drop idx $ samples) samples
+
+         vmin = minimum reals
+         vmax = maximum reals
+         normalize v = case (Tuple vmin vmax) of
+            Tuple (Just v0) (Just v1) ->
+              if v1 == v0
+              then 5.0
+              else (v - v0) / (v1 - v0)
+            _ -> 5.0
+         positionX idx = toNumber $ 610 - 6*idx
+         positionY y = 250.0 * (1.0 - y)
+         radius 0 = 6.0
+         radius 1 = 4.0
+         radius 2 = 3.0
+         radius _ = 2.4
+     in
+     SE.svg [ SA.width 620.0
+            , SA.height 250.0
+            , SA.viewBox 0.0 0.0 620.0 250.0
+            ]
+        $ List.toUnfoldable
+        $ mapWithIndex (\idx v ->
+            SE.g
+              []
+              [ SE.circle
+                  [ SA.cx $ positionX idx
+                  , SA.cy $ positionY $ normalize v
+                  , SA.r $ radius idx
+                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
+                  ]
+              , SE.line
+                  [ SA.x1 $ positionX idx
+                  , SA.x2 $ positionX idx
+                  , SA.y2 $ positionY $ normalize v
+                  , SA.y1 $ 250.0
+                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
+                  , SA.strokeWidth 1.0
+                  ]
+               ])
+        $ reals
 
 
 
@@ -397,7 +445,8 @@ cycleChartSpec n1 lbls1 xs = map cycleOne xs
       else spec
 
     nextKind Samples = DiffSamples
-    nextKind DiffSamples = Samples
+    nextKind DiffSamples = Smooth
+    nextKind Smooth = Samples
 
 
 timer :: forall m. MonadAff m => EventSource m Action
