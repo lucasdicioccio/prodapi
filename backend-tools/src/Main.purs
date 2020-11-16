@@ -58,8 +58,12 @@ main = runHalogenAff do
   body <- awaitBody
   runUI component unit body
 
+data ChartKind
+  = Samples
+  | DiffSamples
+
 data ChartSpec
-  = SingleTimeSeries MetricName Labels
+  = SingleTimeSeries ChartKind MetricName Labels
 
 type State =
   { statusResult :: Maybe String
@@ -74,6 +78,7 @@ data Action
   | MakeMetricsRequest
   | ZoomMetric MetricName Labels
   | UnZoomMetric MetricName Labels
+  | CycleChartSpec MetricName Labels
   | Initialize
 
 component
@@ -143,16 +148,18 @@ renderPromHistory history chartspecs =
         $ Set.toUnfoldable
         $ allKeys
 
-    renderChart (SingleTimeSeries n lbls) =
+    renderChart (SingleTimeSeries k n lbls) =
       let key  = Tuple n lbls
           timeseries = map (Map.lookup key <<< _.metrics) history
       in
       HH.div_
         [ HH.h4_ [ HH.text n ]
         , HH.p_ [ renderLabels lbls ]
-        , renderChartTimeseries timeseries
-        , renderChartDiffTimeseries timeseries
+        , case k of
+            Samples -> renderChartTimeseries timeseries
+            DiffSamples -> renderChartDiffTimeseries timeseries
         , renderUnZoomButton n lbls
+        , renderCycleChartSpec n lbls
         ]
 
     renderPromLine key =
@@ -180,6 +187,13 @@ renderPromHistory history chartspecs =
         , HE.onClick \_ -> Just (UnZoomMetric n lbls)
         ]
         [ HH.text "-" ]
+
+    renderCycleChartSpec n lbls =
+      HH.button
+        [ HP.type_ HP.ButtonSubmit
+        , HE.onClick \_ -> Just (CycleChartSpec n lbls)
+        ]
+        [ HH.text "~" ]
 
     renderValues xs =
       HH.div_
@@ -240,11 +254,23 @@ renderPromHistory history chartspecs =
             ]
         $ List.toUnfoldable
         $ mapWithIndex (\idx v ->
-            SE.circle [ SA.cx $ positionX idx
-                      , SA.cy $ positionY $ normalize v
-                      , SA.r $ radius idx
-                      , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                      ])
+            SE.g
+              []
+              [ SE.circle
+                  [ SA.cx $ positionX idx
+                  , SA.cy $ positionY $ normalize v
+                  , SA.r $ radius idx
+                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
+                  ]
+              , SE.line
+                  [ SA.x1 $ positionX idx
+                  , SA.x2 $ positionX idx
+                  , SA.y2 $ positionY $ normalize v
+                  , SA.y1 $ 250.0
+                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
+                  , SA.strokeWidth 1.0
+                  ]
+               ])
         $ reals
     renderChartDiffTimeseries xs =
      let samples = List.catMaybes xs
@@ -271,11 +297,23 @@ renderPromHistory history chartspecs =
             ]
         $ List.toUnfoldable
         $ mapWithIndex (\idx v ->
-            SE.circle [ SA.cx $ positionX idx
-                      , SA.cy $ positionY $ normalize v
-                      , SA.r $ radius idx
-                      , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                      ])
+            SE.g
+              []
+              [ SE.circle
+                  [ SA.cx $ positionX idx
+                  , SA.cy $ positionY $ normalize v
+                  , SA.r $ radius idx
+                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
+                  ]
+              , SE.line
+                  [ SA.x1 $ positionX idx
+                  , SA.x2 $ positionX idx
+                  , SA.y2 $ positionY $ normalize v
+                  , SA.y1 $ 250.0
+                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
+                  , SA.strokeWidth 1.0
+                  ]
+               ])
         $ reals
 
 
@@ -333,20 +371,34 @@ handleAction = case _ of
                               }
 
   UnZoomMetric n lbls -> do
-    let cs = SingleTimeSeries n lbls
-    H.modify_ \state -> state { displayedCharts = removeChartSpec cs state.displayedCharts }
+    H.modify_ \state -> state { displayedCharts = removeChartSpec n lbls state.displayedCharts }
 
   ZoomMetric n lbls -> do
-    let cs = SingleTimeSeries n lbls
+    let cs = SingleTimeSeries Samples n lbls
     H.modify_ \state -> state { displayedCharts = addChartSpec cs state.displayedCharts }
 
-removeChartSpec :: ChartSpec -> List ChartSpec -> List ChartSpec
-removeChartSpec (SingleTimeSeries n1 lbls1) = List.filter different
+  CycleChartSpec n lbls -> do
+    H.modify_ \state -> state { displayedCharts = cycleChartSpec n lbls state.displayedCharts }
+
+removeChartSpec :: MetricName -> Labels -> List ChartSpec -> List ChartSpec
+removeChartSpec n1 lbls1 = List.filter different
   where
-    different (SingleTimeSeries n2 lbls2) = not $ n2 == n1 && lbls1 == lbls2
+    different (SingleTimeSeries _ n2 lbls2) = not $ n2 == n1 && lbls1 == lbls2
 
 addChartSpec :: ChartSpec -> List ChartSpec -> List ChartSpec
 addChartSpec = flip List.snoc
+
+cycleChartSpec :: MetricName -> Labels -> List ChartSpec -> List ChartSpec
+cycleChartSpec n1 lbls1 xs = map cycleOne xs
+  where
+    cycleOne spec@(SingleTimeSeries k n2 lbls2) =
+      if (n2 == n1 && lbls1 == lbls2)
+      then SingleTimeSeries (nextKind k) n1 lbls1
+      else spec
+
+    nextKind Samples = DiffSamples
+    nextKind DiffSamples = Samples
+
 
 timer :: forall m. MonadAff m => EventSource m Action
 timer = EventSource.affEventSource \emitter -> do
