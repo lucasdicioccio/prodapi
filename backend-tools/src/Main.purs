@@ -84,7 +84,7 @@ component =
     { initialState
     , render
     , eval: H.mkEval $ H.defaultEval
-        { handleAction = handleAction 
+        { handleAction = handleAction
         , initialize = Just Initialize
         }
     }
@@ -147,7 +147,13 @@ renderPromHistory history chartspecs =
       let key  = Tuple n lbls
           timeseries = map (Map.lookup key <<< _.metrics) history
       in
-      renderSparkline timeseries
+      HH.div_
+        [ HH.h4_ [ HH.text n ]
+        , HH.p_ [ renderLabels lbls ]
+        , renderChartTimeseries timeseries
+        , renderChartDiffTimeseries timeseries
+        , renderUnZoomButton n lbls
+        ]
 
     renderPromLine key =
       let n    = Tuple.fst key
@@ -168,6 +174,13 @@ renderPromHistory history chartspecs =
         ]
         [ HH.text "+" ]
 
+    renderUnZoomButton n lbls =
+      HH.button
+        [ HP.type_ HP.ButtonSubmit
+        , HE.onClick \_ -> Just (UnZoomMetric n lbls)
+        ]
+        [ HH.text "-" ]
+
     renderValues xs =
       HH.div_
         $ List.toUnfoldable
@@ -186,18 +199,85 @@ renderPromHistory history chartspecs =
             _ -> 5.0
          positionX idx = toNumber $ 305 - 3*idx
          positionY y = 20.0 * (1.0 - y)
+         radius 0 = 3.0
+         radius 1 = 2.0
+         radius 2 = 1.5
+         radius _ = 1.2
      in
      SE.svg [ SA.width 310.0
             , SA.height 20.0
-            , SA.viewBox 0.0 0.0 310.0 20.0 
+            , SA.viewBox 0.0 0.0 310.0 20.0
             ]
         $ List.toUnfoldable
         $ mapWithIndex (\idx v ->
             SE.circle [ SA.cx $ positionX idx
                       , SA.cy $ positionY $ normalize v
-                      , SA.r 1.2
+                      , SA.r $ radius idx
+                      , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
                       ])
         $ reals
+
+    renderChartTimeseries xs =
+     let reals = List.catMaybes xs
+         vmin = minimum reals
+         vmax = maximum reals
+         normalize v = case (Tuple vmin vmax) of
+            Tuple (Just v0) (Just v1) ->
+              if v1 == v0
+              then 5.0
+              else (v - v0) / (v1 - v0)
+            _ -> 5.0
+         positionX idx = toNumber $ 610 - 6*idx
+         positionY y = 250.0 * (1.0 - y)
+         radius 0 = 6.0
+         radius 1 = 4.0
+         radius 2 = 3.0
+         radius _ = 2.4
+     in
+     SE.svg [ SA.width 620.0
+            , SA.height 250.0
+            , SA.viewBox 0.0 0.0 620.0 250.0
+            ]
+        $ List.toUnfoldable
+        $ mapWithIndex (\idx v ->
+            SE.circle [ SA.cx $ positionX idx
+                      , SA.cy $ positionY $ normalize v
+                      , SA.r $ radius idx
+                      , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
+                      ])
+        $ reals
+    renderChartDiffTimeseries xs =
+     let samples = List.catMaybes xs
+         reals = List.zipWith (\s1 s0 -> s1 - s0) (List.drop 1 samples) samples
+
+         vmin = minimum reals
+         vmax = maximum reals
+         normalize v = case (Tuple vmin vmax) of
+            Tuple (Just v0) (Just v1) ->
+              if v1 == v0
+              then 5.0
+              else (v - v0) / (v1 - v0)
+            _ -> 5.0
+         positionX idx = toNumber $ 610 - 6*idx
+         positionY y = 250.0 * (1.0 - y)
+         radius 0 = 6.0
+         radius 1 = 4.0
+         radius 2 = 3.0
+         radius _ = 2.4
+     in
+     SE.svg [ SA.width 620.0
+            , SA.height 250.0
+            , SA.viewBox 0.0 0.0 620.0 250.0
+            ]
+        $ List.toUnfoldable
+        $ mapWithIndex (\idx v ->
+            SE.circle [ SA.cx $ positionX idx
+                      , SA.cy $ positionY $ normalize v
+                      , SA.r $ radius idx
+                      , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
+                      ])
+        $ reals
+
 
 
 renderLabels :: forall m. Labels -> H.ComponentHTML Action () m
