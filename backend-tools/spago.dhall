@@ -9,6 +9,7 @@ You can edit this file as you like.
   , "effect"
   , "generics-rep"
   , "halogen"
+  , "halogen-svg-elems"
   , "ordered-collections"
   , "parseint"
   , "parsing"

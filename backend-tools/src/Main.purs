@@ -4,22 +4,31 @@ import Prelude
 
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
+import Control.Monad.Rec.Class (forever)
 import Data.Either (hush)
 import Data.Maybe (Maybe(..), maybe)
-import Data.List (List(..))
+import Data.List (List(..), mapWithIndex)
 import Data.List as List
+import Data.Int (toNumber)
 import Effect (Effect)
+import Effect.Exception (error)
+import Effect.Aff (Milliseconds(..))
+import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Query.EventSource (EventSource)
+import Halogen.Query.EventSource as EventSource
+import Halogen.Svg.Attributes as SA
+import Halogen.Svg.Elements as SE
 import Halogen.VDom.Driver (runUI)
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Text.Parsing.Parser (runParser)
 
-import Data.Foldable (fold)
+import Data.Foldable (fold, minimum, maximum)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
@@ -49,16 +58,23 @@ main = runHalogenAff do
   body <- awaitBody
   runUI component unit body
 
+data ChartSpec
+  = SingleTimeSeries MetricName Labels
+
 type State =
   { statusResult :: Maybe String
   , metricsResult :: Maybe String
   , nsamples :: Int
   , metricsHistory :: List PromData
+  , displayedCharts :: List ChartSpec
   }
 
 data Action
   = MakeStatusRequest MouseEvent
-  | MakeMetricsRequest MouseEvent
+  | MakeMetricsRequest
+  | ZoomMetric MetricName Labels
+  | UnZoomMetric MetricName Labels
+  | Initialize
 
 component
   :: forall query input output m. MonadAff m
@@ -67,11 +83,20 @@ component =
   H.mkComponent
     { initialState
     , render
-    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
+    , eval: H.mkEval $ H.defaultEval
+        { handleAction = handleAction 
+        , initialize = Just Initialize
+        }
     }
 
 initialState :: forall i. i -> State
-initialState _ = { statusResult: Nothing, metricsResult: Nothing, nsamples: 30, metricsHistory: Nil }
+initialState _ =
+  { statusResult: Nothing
+  , metricsResult: Nothing
+  , nsamples: 100
+  , metricsHistory: Nil
+  , displayedCharts: Nil
+  }
 
 render :: forall m. State -> H.ComponentHTML Action () m
 render st =
@@ -88,35 +113,92 @@ render st =
                 [ HH.code_ [ HH.text res ] ]
             ]
     , renderPromHistory
-        $ st.metricsHistory
+        st.metricsHistory
+        st.displayedCharts
     ]
 
-renderPromHistory :: forall m. List PromData -> H.ComponentHTML Action () m
-renderPromHistory history =
-  HH.table_
-    $ map (\key -> renderPromLine key)
-    $ Set.toUnfoldable
-    $ allKeys
-
+renderPromHistory
+  :: forall m
+  .  List PromData
+  -> List ChartSpec
+  -> H.ComponentHTML Action () m
+renderPromHistory history chartspecs =
+    HH.div_
+      [ renderZoomedCharts
+      , renderPromTable
+      ]
   where
     allKeys :: Set (Tuple MetricName Labels)
     allKeys = fold (map (Map.keys <<< _.metrics) history)
+
+    renderZoomedCharts =
+      HH.ul_
+        $ map (\spec -> renderChart spec)
+        $ List.toUnfoldable
+        $ chartspecs
+
+    renderPromTable =
+      HH.table_
+        $ map (\key -> renderPromLine key)
+        $ Set.toUnfoldable
+        $ allKeys
+
+    renderChart (SingleTimeSeries n lbls) =
+      let key  = Tuple n lbls
+          timeseries = map (Map.lookup key <<< _.metrics) history
+      in
+      renderSparkline timeseries
 
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
           timeseries = map (Map.lookup key <<< _.metrics) history
       in
-      HH.tr_ [ HH.td_ [ HH.text n ]
+      HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]
+             , HH.td_ [ HH.text n ]
              , HH.td_ [ renderLabels lbls ]
-             , HH.td_ [ renderValues timeseries ]
+             , HH.td_ [ renderSparkline timeseries ]
+             , HH.td_ [ renderValues $ List.take 1 timeseries ]
              ]
+
+    renderZoomButton n lbls =
+      HH.button
+        [ HP.type_ HP.ButtonSubmit
+        , HE.onClick \_ -> Just (ZoomMetric n lbls)
+        ]
+        [ HH.text "+" ]
 
     renderValues xs =
       HH.div_
         $ List.toUnfoldable
         $ map (\v -> HH.span_ [ HH.text $ v <> " "])
         $ map (maybe "NA" show) xs
+
+    renderSparkline xs =
+     let reals = List.catMaybes xs
+         vmin = minimum reals
+         vmax = maximum reals
+         normalize v = case (Tuple vmin vmax) of
+            Tuple (Just v0) (Just v1) ->
+              if v1 == v0
+              then 5.0
+              else (v - v0) / (v1 - v0)
+            _ -> 5.0
+         positionX idx = toNumber $ 305 - 3*idx
+         positionY y = 20.0 * (1.0 - y)
+     in
+     SE.svg [ SA.width 310.0
+            , SA.height 20.0
+            , SA.viewBox 0.0 0.0 310.0 20.0 
+            ]
+        $ List.toUnfoldable
+        $ mapWithIndex (\idx v ->
+            SE.circle [ SA.cx $ positionX idx
+                      , SA.cy $ positionY $ normalize v
+                      , SA.r 1.2
+                      ])
+        $ reals
+
 
 renderLabels :: forall m. Labels -> H.ComponentHTML Action () m
 renderLabels labels =
@@ -148,18 +230,20 @@ renderGetMetrics :: forall m. State -> H.ComponentHTML Action () m
 renderGetMetrics st =
   HH.button
     [ HP.type_ HP.ButtonSubmit
-    , HE.onClick \ev -> Just (MakeMetricsRequest ev)
     ]
     [ HH.text "Metrics" ]
 
 handleAction :: forall output m. MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
+  Initialize -> do
+    _ <- H.subscribe timer
+    pure unit
 
   MakeStatusRequest event -> do
     response <- H.liftAff $ AX.get AXRF.string ("/status")
     H.modify_ _ { statusResult = map _.body (hush response) }
 
-  MakeMetricsRequest event -> do
+  MakeMetricsRequest -> do
     response <- H.liftAff $ AX.get AXRF.string ("/metrics")
     let prom = hush response >>= parseBody
     let promlist = maybe Nil (\dat -> List.singleton $ fromPromDoc dat) prom
@@ -167,6 +251,30 @@ handleAction = case _ of
                               , metricsHistory = List.take state.nsamples
                                   $ promlist <> state.metricsHistory
                               }
+
+  UnZoomMetric n lbls -> do
+    let cs = SingleTimeSeries n lbls
+    H.modify_ \state -> state { displayedCharts = removeChartSpec cs state.displayedCharts }
+
+  ZoomMetric n lbls -> do
+    let cs = SingleTimeSeries n lbls
+    H.modify_ \state -> state { displayedCharts = addChartSpec cs state.displayedCharts }
+
+removeChartSpec :: ChartSpec -> List ChartSpec -> List ChartSpec
+removeChartSpec (SingleTimeSeries n1 lbls1) = List.filter different
+  where
+    different (SingleTimeSeries n2 lbls2) = not $ n2 == n1 && lbls1 == lbls2
+
+addChartSpec :: ChartSpec -> List ChartSpec -> List ChartSpec
+addChartSpec = flip List.snoc
+
+timer :: forall m. MonadAff m => EventSource m Action
+timer = EventSource.affEventSource \emitter -> do
+  fiber <- Aff.forkAff $ forever do
+    Aff.delay $ Milliseconds 500.0
+    EventSource.emit emitter MakeMetricsRequest
+  pure $ EventSource.Finalizer do
+    Aff.killFiber (error "Event source finalized") fiber
 
 parseBody :: forall t. { body :: String | t } -> Maybe PromDoc
 parseBody = hush <<< (flip runParser) promDoc <<< _.body
