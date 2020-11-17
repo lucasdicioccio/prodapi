@@ -58,13 +58,19 @@ main = runHalogenAff do
   body <- awaitBody
   runUI component unit body
 
-data ChartKind
+data ChartDisplayMode
   = Samples
   | DiffSamples
   | Smooth
 
+showDisplayMode :: ChartDisplayMode -> String
+showDisplayMode = case _ of
+  Samples -> "raw"
+  DiffSamples -> "delta"
+  Smooth -> "smooth"
+
 data ChartSpec
-  = SingleTimeSeries Int ChartKind MetricName Labels
+  = SingleTimeSeries Int ChartDisplayMode MetricName Labels
 
 specIndex :: ChartSpec -> Int
 specIndex (SingleTimeSeries n _ _ _) = n
@@ -157,7 +163,7 @@ renderPromHistory history chartspecs =
           timeseries = map (Map.lookup key <<< _.metrics) history
       in
       HH.div_
-        [ HH.h4_ [ HH.text n ]
+        [ HH.h4_ [ HH.text n , HH.text " ", HH.em_ [ HH.text $ showDisplayMode k ] ]
         , HH.p_ [ renderLabels lbls ]
         , case k of
             Samples -> renderChartTimeseries timeseries
@@ -228,13 +234,15 @@ renderSparkline xs =
         , SA.viewBox 0.0 0.0 310.0 20.0
         ]
     $ List.toUnfoldable
-    $ mapWithIndex (\idx v ->
-        SE.circle [ SA.cx $ positionX idx
-                  , SA.cy $ positionY $ normalize v
-                  , SA.r $ radius idx
-                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                  ])
-    $ reals
+    $ mapWithIndex (\idx (Tuple v1 v2) ->
+        SE.line [ SA.x1 $ positionX idx
+                , SA.y1 $ positionY $ normalize v1
+                , SA.x2 $ positionX (idx + 1)
+                , SA.y2 $ positionY $ normalize v2
+                , SA.stroke (Just $ SA.RGBA 20 20 20 0.8)
+                , SA.strokeWidth 1.0
+                ])
+    $ List.zip reals (List.drop 1 reals)
 
 renderChartTimeseries xs =
  let reals = List.catMaybes xs
@@ -290,7 +298,7 @@ renderChartTimeseries xs =
  
 renderChartDiffTimeseries xs =
  let samples = List.catMaybes xs
-     reals = List.zipWith (\s1 s0 -> s1 - s0) (List.drop 1 samples) samples
+     reals = List.zipWith (\s0 s1 -> s1 - s0) (List.drop 1 samples) samples
 
      vmin = minimum reals
      vmax = maximum reals
