@@ -12,6 +12,27 @@ import Halogen.HTML as HH
 import Halogen.Svg.Attributes as SA
 import Halogen.Svg.Elements as SE
 
+
+type SegmentPref =
+  { positionX :: Int -> Number
+  , positionY :: Number -> Number
+  , normalize :: Number -> Number
+  }
+
+renderSegment :: forall t1 t2. SegmentPref -> Int -> Tuple Number Number -> HH.HTML t1 t2
+renderSegment pref idx (Tuple v1 v2) =
+  SE.g
+    []
+    [ SE.line
+        [ SA.x1 $ pref.positionX $ idx
+        , SA.x2 $ pref.positionX $ idx + 1
+        , SA.y1 $ pref.positionY $ pref.normalize v1
+        , SA.y2 $ pref.positionY $ pref.normalize v2
+        , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
+        , SA.strokeWidth 1.0
+        ]
+     ]
+
 renderChartTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
 renderChartTimeseries xs =
  let reals = List.catMaybes xs
@@ -25,24 +46,16 @@ renderChartTimeseries xs =
         _ -> 5.0
      positionX idx = toNumber $ 610 - 6*idx
      positionY y = 250.0 * (1.0 - y)
+
+     pref = {positionX: positionX, positionY: positionY, normalize: normalize}
+
      radius 0 = 6.0
      radius 1 = 4.0
      radius 2 = 3.0
      radius _ = 2.4
      segments =
         List.toUnfoldable
-        $ mapWithIndex (\idx (Tuple v1 v2) ->
-            SE.g
-              []
-              [ SE.line
-                  [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX $ idx + 1
-                  , SA.y1 $ positionY $ normalize v1
-                  , SA.y2 $ positionY $ normalize v2
-                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
-                  , SA.strokeWidth 1.0
-                  ]
-               ])
+        $ mapWithIndex (renderSegment pref)
         $ List.zip reals (List.drop 1 reals)
      points =
         List.toUnfoldable
@@ -85,20 +98,11 @@ renderChartDiffTimeseries xs =
      radius 2 = 3.0
      radius _ = 2.4
 
+     pref = {positionX: positionX, positionY: positionY, normalize: normalize}
+
      segments =
         List.toUnfoldable
-        $ mapWithIndex (\idx (Tuple v1 v2) ->
-            SE.g
-              []
-              [ SE.line
-                  [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX $ idx + 1
-                  , SA.y1 $ positionY $ normalize v1
-                  , SA.y2 $ positionY $ normalize v2
-                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
-                  , SA.strokeWidth 1.0
-                  ]
-               ])
+        $ mapWithIndex (renderSegment pref)
         $ List.zip reals (List.drop 1 reals)
      points =
         List.toUnfoldable
@@ -143,20 +147,10 @@ renderChartSmoothTimeseries xs =
      radius 1 = 4.0
      radius 2 = 3.0
      radius _ = 2.4
+     pref = {positionX: positionX, positionY: positionY, normalize: normalize}
      segments =
         List.toUnfoldable
-        $ mapWithIndex (\idx (Tuple v1 v2) ->
-            SE.g
-              []
-              [ SE.line
-                  [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX $ idx + 1
-                  , SA.y1 $ positionY $ normalize v1
-                  , SA.y2 $ positionY $ normalize v2
-                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
-                  , SA.strokeWidth 1.0
-                  ]
-               ])
+        $ mapWithIndex (renderSegment pref)
         $ List.zip reals (List.drop 1 reals)
      points =
         List.toUnfoldable
