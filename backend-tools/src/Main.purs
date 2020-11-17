@@ -7,9 +7,8 @@ import Affjax.ResponseFormat as AXRF
 import Control.Monad.Rec.Class (forever)
 import Data.Either (hush)
 import Data.Maybe (Maybe(..), maybe, fromMaybe)
-import Data.List (List(..), mapWithIndex)
+import Data.List (List(..))
 import Data.List as List
-import Data.Int (toNumber)
 import Effect (Effect)
 import Effect.Exception (error)
 import Effect.Aff (Milliseconds(..))
@@ -22,13 +21,11 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource (EventSource)
 import Halogen.Query.EventSource as EventSource
-import Halogen.Svg.Attributes as SA
-import Halogen.Svg.Elements as SE
 import Halogen.VDom.Driver (runUI)
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Text.Parsing.Parser (runParser)
 
-import Data.Foldable (fold, minimum, maximum, sum)
+import Data.Foldable (fold, maximum)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
@@ -36,6 +33,9 @@ import Data.Tuple as Tuple
 import Data.Map (Map)
 import Data.Map as Map
 import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
+import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..))
+import Charting.SparkLine (renderSparkline)
+import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries, renderChartSmoothTimeseries)
 
 type PromData =
   { metrics :: Map (Tuple MetricName Labels) MetricValue
@@ -58,22 +58,11 @@ main = runHalogenAff do
   body <- awaitBody
   runUI component unit body
 
-data ChartDisplayMode
-  = Samples
-  | DiffSamples
-  | Smooth
-
 showDisplayMode :: ChartDisplayMode -> String
 showDisplayMode = case _ of
   Samples -> "raw"
   DiffSamples -> "delta"
   Smooth -> "smooth"
-
-data ChartSpec
-  = SingleTimeSeries Int ChartDisplayMode MetricName Labels
-
-specIndex :: ChartSpec -> Int
-specIndex (SingleTimeSeries n _ _ _) = n
 
 type State =
   { statusResult :: Maybe String
@@ -213,203 +202,6 @@ renderPromHistory history chartspecs =
         $ List.toUnfoldable
         $ map (\v -> HH.span_ [ HH.text $ v <> " "])
         $ map (maybe "NA" show) xs
-
-renderSparkline xs =
- let reals = List.catMaybes xs
-     vmin = minimum reals
-     vmax = maximum reals
-     normalize v = case (Tuple vmin vmax) of
-        Tuple (Just v0) (Just v1) ->
-          if v1 == v0
-          then 5.0
-          else (v - v0) / (v1 - v0)
-        _ -> 5.0
-     positionX idx = toNumber $ 305 - 3*idx
-     positionY y = 20.0 * (1.0 - y)
-     radius 0 = 3.0
-     radius 1 = 2.0
-     radius 2 = 1.5
-     radius _ = 1.2
- in
- SE.svg [ SA.width 310.0
-        , SA.height 20.0
-        , SA.viewBox 0.0 0.0 310.0 20.0
-        ]
-    $ List.toUnfoldable
-    $ mapWithIndex (\idx (Tuple v1 v2) ->
-        SE.line [ SA.x1 $ positionX idx
-                , SA.y1 $ positionY $ normalize v1
-                , SA.x2 $ positionX (idx + 1)
-                , SA.y2 $ positionY $ normalize v2
-                , SA.stroke (Just $ SA.RGBA 20 20 20 0.8)
-                , SA.strokeWidth 1.0
-                ])
-    $ List.zip reals (List.drop 1 reals)
-
-renderChartTimeseries xs =
- let reals = List.catMaybes xs
-     vmin = minimum reals
-     vmax = maximum reals
-     normalize v = case (Tuple vmin vmax) of
-        Tuple (Just v0) (Just v1) ->
-          if v1 == v0
-          then 5.0
-          else (v - v0) / (v1 - v0)
-        _ -> 5.0
-     positionX idx = toNumber $ 610 - 6*idx
-     positionY y = 250.0 * (1.0 - y)
-     radius 0 = 6.0
-     radius 1 = 4.0
-     radius 2 = 3.0
-     radius _ = 2.4
-     segments =
-        List.toUnfoldable
-        $ mapWithIndex (\idx (Tuple v1 v2) ->
-            SE.g
-              []
-              [ SE.line
-                  [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX $ idx + 1
-                  , SA.y1 $ positionY $ normalize v1
-                  , SA.y2 $ positionY $ normalize v2
-                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
-                  , SA.strokeWidth 1.0
-                  ]
-               ])
-        $ List.zip reals (List.drop 1 reals)
-     points =
-        List.toUnfoldable
-        $ mapWithIndex (\idx v ->
-            SE.g
-              []
-              [ SE.circle
-                  [ SA.cx $ positionX idx
-                  , SA.cy $ positionY $ normalize v
-                  , SA.r $ radius idx
-                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                  ]
-               ])
-        $ reals
- in
- SE.svg [ SA.width 620.0
-        , SA.height 250.0
-        , SA.viewBox 0.0 0.0 620.0 250.0
-        ]
-        (segments <> points)
-
- 
-renderChartDiffTimeseries xs =
- let samples = List.catMaybes xs
-     reals = List.zipWith (\s0 s1 -> s1 - s0) (List.drop 1 samples) samples
-
-     vmin = minimum reals
-     vmax = maximum reals
-     normalize v = case (Tuple vmin vmax) of
-        Tuple (Just v0) (Just v1) ->
-          if v1 == v0
-          then 5.0
-          else (v - v0) / (v1 - v0)
-        _ -> 5.0
-     positionX idx = toNumber $ 610 - 6*idx
-     positionY y = 250.0 * (1.0 - y)
-     radius 0 = 6.0
-     radius 1 = 4.0
-     radius 2 = 3.0
-     radius _ = 2.4
-
-     segments =
-        List.toUnfoldable
-        $ mapWithIndex (\idx (Tuple v1 v2) ->
-            SE.g
-              []
-              [ SE.line
-                  [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX $ idx + 1
-                  , SA.y1 $ positionY $ normalize v1
-                  , SA.y2 $ positionY $ normalize v2
-                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
-                  , SA.strokeWidth 1.0
-                  ]
-               ])
-        $ List.zip reals (List.drop 1 reals)
-     points =
-        List.toUnfoldable
-        $ mapWithIndex (\idx v ->
-            SE.g
-              []
-              [ SE.circle
-                  [ SA.cx $ positionX idx
-                  , SA.cy $ positionY $ normalize v
-                  , SA.r $ radius idx
-                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                  ]
-               ])
-        $ reals
- in
- SE.svg [ SA.width 620.0
-        , SA.height 250.0
-        , SA.viewBox 0.0 0.0 620.0 250.0
-        ]
-    $ segments <> points
-
-renderChartSmoothTimeseries xs =
- let samples = List.catMaybes xs
-     average zs = (sum zs) / (toNumber $ List.length zs)
-     reals = 
-        List.drop 30
-       $ map average
-       $ mapWithIndex (\idx _ -> List.take 30 $ List.drop idx $ samples) samples
-
-     vmin = minimum reals
-     vmax = maximum reals
-     normalize v = case (Tuple vmin vmax) of
-        Tuple (Just v0) (Just v1) ->
-          if v1 == v0
-          then 5.0
-          else (v - v0) / (v1 - v0)
-        _ -> 5.0
-     positionX idx = toNumber $ 610 - 6*idx
-     positionY y = 250.0 * (1.0 - y)
-     radius 0 = 6.0
-     radius 1 = 4.0
-     radius 2 = 3.0
-     radius _ = 2.4
-     segments =
-        List.toUnfoldable
-        $ mapWithIndex (\idx (Tuple v1 v2) ->
-            SE.g
-              []
-              [ SE.line
-                  [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX $ idx + 1
-                  , SA.y1 $ positionY $ normalize v1
-                  , SA.y2 $ positionY $ normalize v2
-                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
-                  , SA.strokeWidth 1.0
-                  ]
-               ])
-        $ List.zip reals (List.drop 1 reals)
-     points =
-        List.toUnfoldable
-        $ mapWithIndex (\idx v ->
-            SE.g
-              []
-              [ SE.circle
-                  [ SA.cx $ positionX idx
-                  , SA.cy $ positionY $ normalize v
-                  , SA.r $ radius idx
-                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                  ]
-               ])
-        $ reals
- in
- SE.svg [ SA.width 620.0
-        , SA.height 250.0
-        , SA.viewBox 0.0 0.0 620.0 250.0
-        ]
-    $ segments <> points
-
-
 
 renderLabels :: forall m. Labels -> H.ComponentHTML Action () m
 renderLabels labels =
