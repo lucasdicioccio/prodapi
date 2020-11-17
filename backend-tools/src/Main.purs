@@ -33,9 +33,9 @@ import Data.Tuple as Tuple
 import Data.Map (Map)
 import Data.Map as Map
 import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
-import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDisplayMode)
+import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDisplayMode, specKeys)
 import Charting.SparkLine (renderSparkline)
-import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries, renderChartSmoothTimeseries)
+import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries, renderChartSmoothTimeseries, renderMultiChartTimeseries)
 
 type PromData =
   { metrics :: Map (Tuple MetricName Labels) MetricValue
@@ -168,10 +168,18 @@ renderPromHistory history chartspecs =
         , renderCycleChartSpec idx
         ]
 
-    renderChart (MultiTimeSeries idx xs) =
+    renderChart mts@(MultiTimeSeries idx _) =
+      let 
+          timeseries key = map (Map.lookup key <<< _.metrics) history
+      in
       HH.div_
         [ HH.h4_ [ HH.em_ [ HH.text "combined plot" ] ]
         , renderUnZoomButton idx
+        , renderMultiChartTimeseries
+          $ map (List.take 100)
+          $ map timeseries
+          $ specKeys
+          $ mts
         ]
 
     renderPromLine key =

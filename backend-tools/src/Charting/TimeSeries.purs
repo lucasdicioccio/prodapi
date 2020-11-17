@@ -186,3 +186,48 @@ renderChartSmoothTimeseries xs =
         ]
     $ segments <> points
 
+renderMultiChartTimeseries :: forall t1 t2. List (List (Maybe Number)) -> HH.HTML t1 t2
+renderMultiChartTimeseries xxs =
+ let allReals = List.catMaybes $ List.concat xxs
+     vmin = minimum allReals
+     vmax = maximum allReals
+     normalize v = case (Tuple vmin vmax) of
+        Tuple (Just v0) (Just v1) ->
+          if v1 == v0
+          then 5.0
+          else (v - v0) / (v1 - v0)
+        _ -> 5.0
+     positionX idx = toNumber $ 610 - 6*idx
+     positionY y = 250.0 * (1.0 - y)
+
+     radius 0 = 6.0
+     radius 1 = 4.0
+     radius 2 = 3.0
+     radius _ = 2.4
+     
+     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
+     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
+
+     segments mreals =
+        let reals = List.catMaybes mreals
+        in
+        List.toUnfoldable
+        $ mapWithIndex (renderSegment pref1)
+        $ List.zip reals (List.drop 1 reals)
+     points mreals =
+        let reals = List.catMaybes mreals
+        in
+        List.toUnfoldable
+        $ mapWithIndex (renderPoint pref2)
+        $ reals
+ in
+ SE.svg [ SA.width 620.0
+        , SA.height 250.0
+        , SA.viewBox 0.0 0.0 620.0 250.0
+        ]
+        ( List.toUnfoldable
+          $ List.concat
+          $ map (\xs -> segments xs <> points xs) xxs
+        )
+
+ 
