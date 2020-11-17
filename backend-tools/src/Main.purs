@@ -6,7 +6,7 @@ import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Control.Monad.Rec.Class (forever)
 import Data.Either (hush)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.List (List(..), mapWithIndex)
 import Data.List as List
 import Data.Int (toNumber)
@@ -64,7 +64,10 @@ data ChartKind
   | Smooth
 
 data ChartSpec
-  = SingleTimeSeries ChartKind MetricName Labels
+  = SingleTimeSeries Int ChartKind MetricName Labels
+
+specIndex :: ChartSpec -> Int
+specIndex (SingleTimeSeries n _ _ _) = n
 
 type State =
   { statusResult :: Maybe String
@@ -78,8 +81,8 @@ data Action
   = MakeStatusRequest MouseEvent
   | MakeMetricsRequest
   | ZoomMetric MetricName Labels
-  | UnZoomMetric MetricName Labels
-  | CycleChartSpec MetricName Labels
+  | UnZoomMetric Int
+  | CycleChartSpec Int
   | Initialize
 
 component
@@ -149,7 +152,7 @@ renderPromHistory history chartspecs =
         $ Set.toUnfoldable
         $ allKeys
 
-    renderChart (SingleTimeSeries k n lbls) =
+    renderChart (SingleTimeSeries idx k n lbls) =
       let key  = Tuple n lbls
           timeseries = map (Map.lookup key <<< _.metrics) history
       in
@@ -160,8 +163,8 @@ renderPromHistory history chartspecs =
             Samples -> renderChartTimeseries timeseries
             DiffSamples -> renderChartDiffTimeseries timeseries
             Smooth -> renderChartSmoothTimeseries timeseries
-        , renderUnZoomButton n lbls
-        , renderCycleChartSpec n lbls
+        , renderUnZoomButton idx
+        , renderCycleChartSpec idx
         ]
 
     renderPromLine key =
@@ -183,17 +186,17 @@ renderPromHistory history chartspecs =
         ]
         [ HH.text "+" ]
 
-    renderUnZoomButton n lbls =
+    renderUnZoomButton idx =
       HH.button
         [ HP.type_ HP.ButtonSubmit
-        , HE.onClick \_ -> Just (UnZoomMetric n lbls)
+        , HE.onClick \_ -> Just (UnZoomMetric idx)
         ]
         [ HH.text "-" ]
 
-    renderCycleChartSpec n lbls =
+    renderCycleChartSpec idx =
       HH.button
         [ HP.type_ HP.ButtonSubmit
-        , HE.onClick \_ -> Just (CycleChartSpec n lbls)
+        , HE.onClick \_ -> Just (CycleChartSpec idx)
         ]
         [ HH.text "~" ]
 
@@ -449,30 +452,33 @@ handleAction = case _ of
                                   $ promlist <> state.metricsHistory
                               }
 
-  UnZoomMetric n lbls -> do
-    H.modify_ \state -> state { displayedCharts = removeChartSpec n lbls state.displayedCharts }
-
   ZoomMetric n lbls -> do
-    let cs = SingleTimeSeries Samples n lbls
-    H.modify_ \state -> state { displayedCharts = addChartSpec cs state.displayedCharts }
+    H.modify_ \state -> 
+      let idx = 1 + fromMaybe 0 (maximum (map specIndex state.displayedCharts))
+          cs = SingleTimeSeries idx Samples n lbls
+      in state { displayedCharts = addChartSpec cs state.displayedCharts }
 
-  CycleChartSpec n lbls -> do
-    H.modify_ \state -> state { displayedCharts = cycleChartSpec n lbls state.displayedCharts }
+  UnZoomMetric idx -> do
+    H.modify_ \state -> state { displayedCharts = removeChartSpec idx state.displayedCharts }
 
-removeChartSpec :: MetricName -> Labels -> List ChartSpec -> List ChartSpec
-removeChartSpec n1 lbls1 = List.filter different
+  CycleChartSpec idx -> do
+    H.modify_ \state -> 
+      state { displayedCharts = cycleChartSpec idx state.displayedCharts }
+
+removeChartSpec :: Int -> List ChartSpec -> List ChartSpec
+removeChartSpec idx1 = List.filter different
   where
-    different (SingleTimeSeries _ n2 lbls2) = not $ n2 == n1 && lbls1 == lbls2
+    different (SingleTimeSeries idx2 _ _ _) = not $ idx1 == idx2
 
 addChartSpec :: ChartSpec -> List ChartSpec -> List ChartSpec
 addChartSpec = flip List.snoc
 
-cycleChartSpec :: MetricName -> Labels -> List ChartSpec -> List ChartSpec
-cycleChartSpec n1 lbls1 xs = map cycleOne xs
+cycleChartSpec :: Int -> List ChartSpec -> List ChartSpec
+cycleChartSpec idx1 xs = map cycleOne xs
   where
-    cycleOne spec@(SingleTimeSeries k n2 lbls2) =
-      if (n2 == n1 && lbls1 == lbls2)
-      then SingleTimeSeries (nextKind k) n1 lbls1
+    cycleOne spec@(SingleTimeSeries idx2 k n lbls) =
+      if (idx1 == idx2)
+      then SingleTimeSeries idx1 (nextKind k) n lbls
       else spec
 
     nextKind Samples = DiffSamples
