@@ -17,7 +17,21 @@ type SegmentPref =
   { positionX :: Int -> Number
   , positionY :: Number -> Number
   , normalize :: Number -> Number
+  , color :: Int -> SA.Color
   }
+
+greylight :: SA.Color
+greylight = SA.RGBA 20 20 20 0.3
+
+red :: SA.Color
+red = SA.RGB 200 0 0
+
+grey :: SA.Color
+grey = SA.RGB 100 100 100
+
+pointColor :: Int -> SA.Color
+pointColor 0 = red
+pointColor _ = grey
 
 renderSegment :: forall t1 t2. SegmentPref -> Int -> Tuple Number Number -> HH.HTML t1 t2
 renderSegment pref idx (Tuple v1 v2) =
@@ -28,7 +42,7 @@ renderSegment pref idx (Tuple v1 v2) =
         , SA.x2 $ pref.positionX $ idx + 1
         , SA.y1 $ pref.positionY $ pref.normalize v1
         , SA.y2 $ pref.positionY $ pref.normalize v2
-        , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
+        , SA.stroke (Just $ pref.color idx)
         , SA.strokeWidth 1.0
         -- TODO: markerEnd
         ]
@@ -73,11 +87,8 @@ renderChartTimeseries xs =
      radius 2 = 3.0
      radius _ = 2.4
      
-     color 0 = SA.RGB 200 0 0
-     color _ = SA.RGB 100 100 100
-
-     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize }
-     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: color}
+     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
+     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
 
      segments =
         List.toUnfoldable
@@ -115,11 +126,8 @@ renderChartDiffTimeseries xs =
      radius 2 = 3.0
      radius _ = 2.4
 
-     color 0 = SA.RGB 200 0 0
-     color _ = SA.RGB 100 100 100
-
-     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize }
-     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: color}
+     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
+     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
 
      segments =
         List.toUnfoldable
@@ -160,11 +168,8 @@ renderChartSmoothTimeseries xs =
      radius 2 = 3.0
      radius _ = 2.4
 
-     color 0 = SA.RGB 200 0 0
-     color _ = SA.RGB 100 100 100
-
-     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize }
-     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: color}
+     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
+     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
 
      segments =
         List.toUnfoldable
@@ -180,6 +185,4 @@ renderChartSmoothTimeseries xs =
         , SA.viewBox 0.0 0.0 620.0 250.0
         ]
     $ segments <> points
-
-
 
