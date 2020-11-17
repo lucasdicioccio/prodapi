@@ -203,58 +203,69 @@ renderPromHistory history chartspecs =
         $ map (\v -> HH.span_ [ HH.text $ v <> " "])
         $ map (maybe "NA" show) xs
 
-    renderSparkline xs =
-     let reals = List.catMaybes xs
-         vmin = minimum reals
-         vmax = maximum reals
-         normalize v = case (Tuple vmin vmax) of
-            Tuple (Just v0) (Just v1) ->
-              if v1 == v0
-              then 5.0
-              else (v - v0) / (v1 - v0)
-            _ -> 5.0
-         positionX idx = toNumber $ 305 - 3*idx
-         positionY y = 20.0 * (1.0 - y)
-         radius 0 = 3.0
-         radius 1 = 2.0
-         radius 2 = 1.5
-         radius _ = 1.2
-     in
-     SE.svg [ SA.width 310.0
-            , SA.height 20.0
-            , SA.viewBox 0.0 0.0 310.0 20.0
-            ]
-        $ List.toUnfoldable
-        $ mapWithIndex (\idx v ->
-            SE.circle [ SA.cx $ positionX idx
-                      , SA.cy $ positionY $ normalize v
-                      , SA.r $ radius idx
-                      , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                      ])
-        $ reals
+renderSparkline xs =
+ let reals = List.catMaybes xs
+     vmin = minimum reals
+     vmax = maximum reals
+     normalize v = case (Tuple vmin vmax) of
+        Tuple (Just v0) (Just v1) ->
+          if v1 == v0
+          then 5.0
+          else (v - v0) / (v1 - v0)
+        _ -> 5.0
+     positionX idx = toNumber $ 305 - 3*idx
+     positionY y = 20.0 * (1.0 - y)
+     radius 0 = 3.0
+     radius 1 = 2.0
+     radius 2 = 1.5
+     radius _ = 1.2
+ in
+ SE.svg [ SA.width 310.0
+        , SA.height 20.0
+        , SA.viewBox 0.0 0.0 310.0 20.0
+        ]
+    $ List.toUnfoldable
+    $ mapWithIndex (\idx v ->
+        SE.circle [ SA.cx $ positionX idx
+                  , SA.cy $ positionY $ normalize v
+                  , SA.r $ radius idx
+                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
+                  ])
+    $ reals
 
-    renderChartTimeseries xs =
-     let reals = List.catMaybes xs
-         vmin = minimum reals
-         vmax = maximum reals
-         normalize v = case (Tuple vmin vmax) of
-            Tuple (Just v0) (Just v1) ->
-              if v1 == v0
-              then 5.0
-              else (v - v0) / (v1 - v0)
-            _ -> 5.0
-         positionX idx = toNumber $ 610 - 6*idx
-         positionY y = 250.0 * (1.0 - y)
-         radius 0 = 6.0
-         radius 1 = 4.0
-         radius 2 = 3.0
-         radius _ = 2.4
-     in
-     SE.svg [ SA.width 620.0
-            , SA.height 250.0
-            , SA.viewBox 0.0 0.0 620.0 250.0
-            ]
-        $ List.toUnfoldable
+renderChartTimeseries xs =
+ let reals = List.catMaybes xs
+     vmin = minimum reals
+     vmax = maximum reals
+     normalize v = case (Tuple vmin vmax) of
+        Tuple (Just v0) (Just v1) ->
+          if v1 == v0
+          then 5.0
+          else (v - v0) / (v1 - v0)
+        _ -> 5.0
+     positionX idx = toNumber $ 610 - 6*idx
+     positionY y = 250.0 * (1.0 - y)
+     radius 0 = 6.0
+     radius 1 = 4.0
+     radius 2 = 3.0
+     radius _ = 2.4
+     segments =
+        List.toUnfoldable
+        $ mapWithIndex (\idx (Tuple v1 v2) ->
+            SE.g
+              []
+              [ SE.line
+                  [ SA.x1 $ positionX idx
+                  , SA.x2 $ positionX $ idx + 1
+                  , SA.y1 $ positionY $ normalize v1
+                  , SA.y2 $ positionY $ normalize v2
+                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
+                  , SA.strokeWidth 1.0
+                  ]
+               ])
+        $ List.zip reals (List.drop 1 reals)
+     points =
+        List.toUnfoldable
         $ mapWithIndex (\idx v ->
             SE.g
               []
@@ -264,40 +275,52 @@ renderPromHistory history chartspecs =
                   , SA.r $ radius idx
                   , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
                   ]
-              , SE.line
+               ])
+        $ reals
+ in
+ SE.svg [ SA.width 620.0
+        , SA.height 250.0
+        , SA.viewBox 0.0 0.0 620.0 250.0
+        ]
+        (segments <> points)
+
+ 
+renderChartDiffTimeseries xs =
+ let samples = List.catMaybes xs
+     reals = List.zipWith (\s1 s0 -> s1 - s0) (List.drop 1 samples) samples
+
+     vmin = minimum reals
+     vmax = maximum reals
+     normalize v = case (Tuple vmin vmax) of
+        Tuple (Just v0) (Just v1) ->
+          if v1 == v0
+          then 5.0
+          else (v - v0) / (v1 - v0)
+        _ -> 5.0
+     positionX idx = toNumber $ 610 - 6*idx
+     positionY y = 250.0 * (1.0 - y)
+     radius 0 = 6.0
+     radius 1 = 4.0
+     radius 2 = 3.0
+     radius _ = 2.4
+
+     segments =
+        List.toUnfoldable
+        $ mapWithIndex (\idx (Tuple v1 v2) ->
+            SE.g
+              []
+              [ SE.line
                   [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX idx
-                  , SA.y2 $ positionY $ normalize v
-                  , SA.y1 $ 250.0
+                  , SA.x2 $ positionX $ idx + 1
+                  , SA.y1 $ positionY $ normalize v1
+                  , SA.y2 $ positionY $ normalize v2
                   , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
                   , SA.strokeWidth 1.0
                   ]
                ])
-        $ reals
-    renderChartDiffTimeseries xs =
-     let samples = List.catMaybes xs
-         reals = List.zipWith (\s1 s0 -> s1 - s0) (List.drop 1 samples) samples
-
-         vmin = minimum reals
-         vmax = maximum reals
-         normalize v = case (Tuple vmin vmax) of
-            Tuple (Just v0) (Just v1) ->
-              if v1 == v0
-              then 5.0
-              else (v - v0) / (v1 - v0)
-            _ -> 5.0
-         positionX idx = toNumber $ 610 - 6*idx
-         positionY y = 250.0 * (1.0 - y)
-         radius 0 = 6.0
-         radius 1 = 4.0
-         radius 2 = 3.0
-         radius _ = 2.4
-     in
-     SE.svg [ SA.width 620.0
-            , SA.height 250.0
-            , SA.viewBox 0.0 0.0 620.0 250.0
-            ]
-        $ List.toUnfoldable
+        $ List.zip reals (List.drop 1 reals)
+     points =
+        List.toUnfoldable
         $ mapWithIndex (\idx v ->
             SE.g
               []
@@ -307,43 +330,53 @@ renderPromHistory history chartspecs =
                   , SA.r $ radius idx
                   , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
                   ]
-              , SE.line
+               ])
+        $ reals
+ in
+ SE.svg [ SA.width 620.0
+        , SA.height 250.0
+        , SA.viewBox 0.0 0.0 620.0 250.0
+        ]
+    $ segments <> points
+
+renderChartSmoothTimeseries xs =
+ let samples = List.catMaybes xs
+     average zs = (sum zs) / (toNumber $ List.length zs)
+     reals = 
+       map average
+       $ mapWithIndex (\idx _ -> List.take 30 $ List.drop idx $ samples) samples
+
+     vmin = minimum reals
+     vmax = maximum reals
+     normalize v = case (Tuple vmin vmax) of
+        Tuple (Just v0) (Just v1) ->
+          if v1 == v0
+          then 5.0
+          else (v - v0) / (v1 - v0)
+        _ -> 5.0
+     positionX idx = toNumber $ 610 - 6*idx
+     positionY y = 250.0 * (1.0 - y)
+     radius 0 = 6.0
+     radius 1 = 4.0
+     radius 2 = 3.0
+     radius _ = 2.4
+     segments =
+        List.toUnfoldable
+        $ mapWithIndex (\idx (Tuple v1 v2) ->
+            SE.g
+              []
+              [ SE.line
                   [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX idx
-                  , SA.y2 $ positionY $ normalize v
-                  , SA.y1 $ 250.0
+                  , SA.x2 $ positionX $ idx + 1
+                  , SA.y1 $ positionY $ normalize v1
+                  , SA.y2 $ positionY $ normalize v2
                   , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
                   , SA.strokeWidth 1.0
                   ]
                ])
-        $ reals
-    renderChartSmoothTimeseries xs =
-     let samples = List.catMaybes xs
-         average zs = (sum zs) / (toNumber $ List.length zs)
-         reals = 
-           map average
-           $ mapWithIndex (\idx _ -> List.take 30 $ List.drop idx $ samples) samples
-
-         vmin = minimum reals
-         vmax = maximum reals
-         normalize v = case (Tuple vmin vmax) of
-            Tuple (Just v0) (Just v1) ->
-              if v1 == v0
-              then 5.0
-              else (v - v0) / (v1 - v0)
-            _ -> 5.0
-         positionX idx = toNumber $ 610 - 6*idx
-         positionY y = 250.0 * (1.0 - y)
-         radius 0 = 6.0
-         radius 1 = 4.0
-         radius 2 = 3.0
-         radius _ = 2.4
-     in
-     SE.svg [ SA.width 620.0
-            , SA.height 250.0
-            , SA.viewBox 0.0 0.0 620.0 250.0
-            ]
-        $ List.toUnfoldable
+        $ List.zip reals (List.drop 1 reals)
+     points =
+        List.toUnfoldable
         $ mapWithIndex (\idx v ->
             SE.g
               []
@@ -353,16 +386,14 @@ renderPromHistory history chartspecs =
                   , SA.r $ radius idx
                   , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
                   ]
-              , SE.line
-                  [ SA.x1 $ positionX idx
-                  , SA.x2 $ positionX idx
-                  , SA.y2 $ positionY $ normalize v
-                  , SA.y1 $ 250.0
-                  , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
-                  , SA.strokeWidth 1.0
-                  ]
                ])
         $ reals
+ in
+ SE.svg [ SA.width 620.0
+        , SA.height 250.0
+        , SA.viewBox 0.0 0.0 620.0 250.0
+        ]
+    $ segments <> points
 
 
 
