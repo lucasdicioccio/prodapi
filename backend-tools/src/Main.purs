@@ -79,6 +79,7 @@ type State =
   { statusResult :: Maybe String
   , metricsResult :: Maybe String
   , nsamples :: Int
+  , nextrasamples :: Int
   , metricsHistory :: List PromData
   , displayedCharts :: List ChartSpec
   }
@@ -109,6 +110,7 @@ initialState _ =
   { statusResult: Nothing
   , metricsResult: Nothing
   , nsamples: 100
+  , nextrasamples: 30
   , metricsHistory: Nil
   , displayedCharts: Nil
   }
@@ -166,9 +168,9 @@ renderPromHistory history chartspecs =
         [ HH.h4_ [ HH.text n , HH.text " ", HH.em_ [ HH.text $ showDisplayMode k ] ]
         , HH.p_ [ renderLabels lbls ]
         , case k of
-            Samples -> renderChartTimeseries timeseries
-            DiffSamples -> renderChartDiffTimeseries timeseries
-            Smooth -> renderChartSmoothTimeseries timeseries
+            Samples -> renderChartTimeseries $ List.take 100 timeseries
+            DiffSamples -> renderChartDiffTimeseries $ List.take 100 timeseries
+            Smooth -> renderChartSmoothTimeseries $ timeseries
         , renderUnZoomButton idx
         , renderCycleChartSpec idx
         ]
@@ -354,7 +356,8 @@ renderChartSmoothTimeseries xs =
  let samples = List.catMaybes xs
      average zs = (sum zs) / (toNumber $ List.length zs)
      reals = 
-       map average
+        List.drop 30
+       $ map average
        $ mapWithIndex (\idx _ -> List.take 30 $ List.drop idx $ samples) samples
 
      vmin = minimum reals
@@ -456,7 +459,7 @@ handleAction = case _ of
     let prom = hush response >>= parseBody
     let promlist = maybe Nil (\dat -> List.singleton $ fromPromDoc dat) prom
     H.modify_ \state -> state { metricsResult = map _.body (hush response)
-                              , metricsHistory = List.take state.nsamples
+                              , metricsHistory = List.take (state.nsamples + state.nextrasamples)
                                   $ promlist <> state.metricsHistory
                               }
 
