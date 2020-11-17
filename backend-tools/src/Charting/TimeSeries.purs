@@ -30,6 +30,27 @@ renderSegment pref idx (Tuple v1 v2) =
         , SA.y2 $ pref.positionY $ pref.normalize v2
         , SA.stroke (Just $ SA.RGBA 20 20 20 0.3)
         , SA.strokeWidth 1.0
+        -- TODO: markerEnd
+        ]
+     ]
+
+type PointPref =
+  { positionX :: Int -> Number
+  , positionY :: Number -> Number
+  , normalize :: Number -> Number
+  , radius :: Int -> Number
+  , color :: Int -> SA.Color
+  }
+
+renderPoint :: forall t1 t2. PointPref -> Int -> Number -> HH.HTML t1 t2
+renderPoint pref idx v =
+  SE.g
+    []
+    [ SE.circle
+        [ SA.cx $ pref.positionX idx
+        , SA.cy $ pref.positionY $ pref.normalize v
+        , SA.r $ pref.radius idx
+        , SA.fill (Just $ pref.color idx)
         ]
      ]
 
@@ -47,28 +68,24 @@ renderChartTimeseries xs =
      positionX idx = toNumber $ 610 - 6*idx
      positionY y = 250.0 * (1.0 - y)
 
-     pref = {positionX: positionX, positionY: positionY, normalize: normalize}
-
      radius 0 = 6.0
      radius 1 = 4.0
      radius 2 = 3.0
      radius _ = 2.4
+     
+     color 0 = SA.RGB 200 0 0
+     color _ = SA.RGB 100 100 100
+
+     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize }
+     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: color}
+
      segments =
         List.toUnfoldable
-        $ mapWithIndex (renderSegment pref)
+        $ mapWithIndex (renderSegment pref1)
         $ List.zip reals (List.drop 1 reals)
      points =
         List.toUnfoldable
-        $ mapWithIndex (\idx v ->
-            SE.g
-              []
-              [ SE.circle
-                  [ SA.cx $ positionX idx
-                  , SA.cy $ positionY $ normalize v
-                  , SA.r $ radius idx
-                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                  ]
-               ])
+        $ mapWithIndex (renderPoint pref2)
         $ reals
  in
  SE.svg [ SA.width 620.0
@@ -98,24 +115,19 @@ renderChartDiffTimeseries xs =
      radius 2 = 3.0
      radius _ = 2.4
 
-     pref = {positionX: positionX, positionY: positionY, normalize: normalize}
+     color 0 = SA.RGB 200 0 0
+     color _ = SA.RGB 100 100 100
+
+     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize }
+     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: color}
 
      segments =
         List.toUnfoldable
-        $ mapWithIndex (renderSegment pref)
+        $ mapWithIndex (renderSegment pref1)
         $ List.zip reals (List.drop 1 reals)
      points =
         List.toUnfoldable
-        $ mapWithIndex (\idx v ->
-            SE.g
-              []
-              [ SE.circle
-                  [ SA.cx $ positionX idx
-                  , SA.cy $ positionY $ normalize v
-                  , SA.r $ radius idx
-                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                  ]
-               ])
+        $ mapWithIndex (renderPoint pref2)
         $ reals
  in
  SE.svg [ SA.width 620.0
@@ -147,23 +159,20 @@ renderChartSmoothTimeseries xs =
      radius 1 = 4.0
      radius 2 = 3.0
      radius _ = 2.4
-     pref = {positionX: positionX, positionY: positionY, normalize: normalize}
+
+     color 0 = SA.RGB 200 0 0
+     color _ = SA.RGB 100 100 100
+
+     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize }
+     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: color}
+
      segments =
         List.toUnfoldable
-        $ mapWithIndex (renderSegment pref)
+        $ mapWithIndex (renderSegment pref1)
         $ List.zip reals (List.drop 1 reals)
      points =
         List.toUnfoldable
-        $ mapWithIndex (\idx v ->
-            SE.g
-              []
-              [ SE.circle
-                  [ SA.cx $ positionX idx
-                  , SA.cy $ positionY $ normalize v
-                  , SA.r $ radius idx
-                  , SA.fill (Just $ if idx == 0 then SA.RGB 200 0 0 else SA.RGB 100 100 100)
-                  ]
-               ])
+        $ mapWithIndex (renderPoint pref2)
         $ reals
  in
  SE.svg [ SA.width 620.0
