@@ -71,6 +71,7 @@ type State =
   , nextrasamples :: Int
   , metricsHistory :: List PromData
   , displayedCharts :: List ChartSpec
+  , polling :: Maybe H.SubscriptionId
   }
 
 data Action
@@ -79,7 +80,8 @@ data Action
   | ZoomMetric MetricName Labels
   | UnZoomMetric Int
   | CycleChartSpec Int
-  | Initialize
+  | StartPolling
+  | StopPolling
 
 component
   :: forall query input output m. MonadAff m
@@ -90,7 +92,7 @@ component =
     , render
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction
-        , initialize = Just Initialize
+        , initialize = Just StartPolling
         }
     }
 
@@ -102,6 +104,7 @@ initialState _ =
   , nextrasamples: 30
   , metricsHistory: Nil
   , displayedCharts: Nil
+  , polling : Nothing
   }
 
 render :: forall m. State -> H.ComponentHTML Action () m
@@ -231,16 +234,32 @@ renderGetStatus st =
 
 renderGetMetrics :: forall m. State -> H.ComponentHTML Action () m
 renderGetMetrics st =
-  HH.button
-    [ HP.type_ HP.ButtonSubmit
-    ]
-    [ HH.text "Metrics" ]
+    case st.polling of
+      Nothing -> unpause
+      Just _ -> pause
+  where
+    pause = HH.button
+      [ HP.type_ HP.ButtonSubmit
+      , HE.onClick \_ -> Just StopPolling
+      ]
+      [ HH.text "pause" ]
+
+    unpause = HH.button
+      [ HP.type_ HP.ButtonSubmit
+      , HE.onClick \_ -> Just StartPolling
+      ]
+      [ HH.text "unpause" ]
 
 handleAction :: forall output m. MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
-  Initialize -> do
-    _ <- H.subscribe timer
-    pure unit
+  StartPolling -> do
+    sid <- H.subscribe timer
+    H.modify_ _ { polling = Just sid }
+
+  StopPolling -> do
+    state <- H.get
+    maybe (pure unit) (H.unsubscribe) state.polling
+    H.modify_ _ { polling = Nothing }
 
   MakeStatusRequest event -> do
     response <- H.liftAff $ AX.get AXRF.string ("/status")
@@ -287,7 +306,6 @@ cycleChartSpec idx1 xs = map cycleOne xs
     nextKind Samples = DiffSamples
     nextKind DiffSamples = Smooth
     nextKind Smooth = Samples
-
 
 timer :: forall m. MonadAff m => EventSource m Action
 timer = EventSource.affEventSource \emitter -> do
