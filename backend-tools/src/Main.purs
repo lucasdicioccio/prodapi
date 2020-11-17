@@ -33,7 +33,7 @@ import Data.Tuple as Tuple
 import Data.Map (Map)
 import Data.Map as Map
 import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
-import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..))
+import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDisplayMode)
 import Charting.SparkLine (renderSparkline)
 import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries, renderChartSmoothTimeseries)
 
@@ -79,6 +79,7 @@ data Action
   | MakeMetricsRequest
   | ZoomMetric MetricName Labels
   | UnZoomMetric Int
+  | MergeMetric MetricName Labels
   | CycleChartSpec Int
   | StartPolling
   | StopPolling
@@ -167,12 +168,20 @@ renderPromHistory history chartspecs =
         , renderCycleChartSpec idx
         ]
 
+    renderChart (MultiTimeSeries idx xs) =
+      HH.div_
+        [ HH.h4_ [ HH.em_ [ HH.text "combined plot" ] ]
+        , renderUnZoomButton idx
+        ]
+
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
           timeseries = map (Map.lookup key <<< _.metrics) history
       in
-      HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]
+      HH.tr_ [ HH.td_ [ renderZoomButton n lbls
+                      , renderMergeButon n lbls
+                      ]
              , HH.td_ [ HH.text n ]
              , HH.td_ [ renderLabels lbls ]
              , HH.td_ [ renderSparkline timeseries ]
@@ -192,6 +201,13 @@ renderPromHistory history chartspecs =
         , HE.onClick \_ -> Just (UnZoomMetric idx)
         ]
         [ HH.text "-" ]
+
+    renderMergeButon n lbls =
+      HH.button
+        [ HP.type_ HP.ButtonSubmit
+        , HE.onClick \_ -> Just (MergeMetric n lbls)
+        ]
+        [ HH.text "$" ]
 
     renderCycleChartSpec idx =
       HH.button
@@ -266,13 +282,30 @@ handleAction = case _ of
     H.modify_ _ { statusResult = map _.body (hush response) }
 
   MakeMetricsRequest -> do
-    response <- H.liftAff $ AX.get AXRF.string ("/metrics")
+    let url = "/metrics"
+    response <- H.liftAff $ AX.get AXRF.string url
     let prom = hush response >>= parseBody
     let promlist = maybe Nil (\dat -> List.singleton $ fromPromDoc dat) prom
     H.modify_ \state -> state { metricsResult = map _.body (hush response)
                               , metricsHistory = List.take (state.nsamples + state.nextrasamples)
                                   $ promlist <> state.metricsHistory
                               }
+
+  MergeMetric n lbls -> do
+    H.modify_ \state -> 
+      let idx = fromMaybe 0 (maximum (map specIndex state.displayedCharts))
+          found = state.displayedCharts
+                  # List.find (\cs -> specIndex cs == idx)
+          cs2 = SingleTimeSeries (idx + 1) Samples n lbls
+
+          merged = case found of
+            Nothing -> cs2
+            Just cs1@(SingleTimeSeries _ _ _ _) -> MultiTimeSeries (idx + 2) (List.fromFoldable [cs2,cs1])
+            Just (MultiTimeSeries _ xs) -> MultiTimeSeries (idx + 2) (List.snoc xs cs2)
+      in state { displayedCharts = state.displayedCharts
+                     # removeChartSpec idx
+                     # addChartSpec merged
+               }
 
   ZoomMetric n lbls -> do
     H.modify_ \state -> 
@@ -290,7 +323,7 @@ handleAction = case _ of
 removeChartSpec :: Int -> List ChartSpec -> List ChartSpec
 removeChartSpec idx1 = List.filter different
   where
-    different (SingleTimeSeries idx2 _ _ _) = not $ idx1 == idx2
+    different cs2 = idx1 /= specIndex cs2
 
 addChartSpec :: ChartSpec -> List ChartSpec -> List ChartSpec
 addChartSpec = flip List.snoc
@@ -298,14 +331,13 @@ addChartSpec = flip List.snoc
 cycleChartSpec :: Int -> List ChartSpec -> List ChartSpec
 cycleChartSpec idx1 xs = map cycleOne xs
   where
+    cycleOne spec@(MultiTimeSeries _ _) = spec
     cycleOne spec@(SingleTimeSeries idx2 k n lbls) =
       if (idx1 == idx2)
       then SingleTimeSeries idx1 (nextKind k) n lbls
       else spec
 
-    nextKind Samples = DiffSamples
-    nextKind DiffSamples = Smooth
-    nextKind Smooth = Samples
+    nextKind = cycleDisplayMode
 
 timer :: forall m. MonadAff m => EventSource m Action
 timer = EventSource.affEventSource \emitter -> do
