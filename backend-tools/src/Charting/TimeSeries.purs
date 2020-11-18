@@ -21,7 +21,19 @@ type SegmentPref =
   }
 
 greylight :: SA.Color
-greylight = SA.RGBA 20 20 20 0.3
+greylight = SA.RGB 20 20 20
+
+bluelight :: SA.Color
+bluelight = SA.RGB 20 20 200
+
+redlight :: SA.Color
+redlight = SA.RGB 200 20 20
+
+palette :: Int -> SA.Color
+palette 0 = greylight
+palette 1 = redlight
+palette 2 = bluelight
+palette n = palette $ n `mod` 3
 
 red :: SA.Color
 red = SA.RGB 200 0 0
@@ -205,20 +217,20 @@ renderMultiChartTimeseries xxs =
      radius 2 = 3.0
      radius _ = 2.4
      
-     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
-     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
+     pref1 idx = {positionX: positionX, positionY: positionY, normalize: normalize, color: const (palette idx)}
+     pref2 idx = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: const (palette idx)}
 
-     segments mreals =
+     segments tsIdx mreals =
         let reals = List.catMaybes mreals
         in
         List.toUnfoldable
-        $ mapWithIndex (renderSegment pref1)
+        $ mapWithIndex (renderSegment $ pref1 tsIdx)
         $ List.zip reals (List.drop 1 reals)
-     points mreals =
+     points tsIdx mreals =
         let reals = List.catMaybes mreals
         in
         List.toUnfoldable
-        $ mapWithIndex (renderPoint pref2)
+        $ mapWithIndex (renderPoint $ pref2 tsIdx)
         $ reals
  in
  SE.svg [ SA.width 620.0
@@ -227,7 +239,7 @@ renderMultiChartTimeseries xxs =
         ]
         ( List.toUnfoldable
           $ List.concat
-          $ map (\xs -> segments xs <> points xs) xxs
+          $ mapWithIndex (segments <> points) xxs
         )
 
  
