@@ -18,7 +18,17 @@ type SegmentPref =
   , positionY :: Number -> Number
   , normalize :: Number -> Number
   , color :: Int -> SA.Color
+  , width :: Int -> Number
   }
+
+greylightA :: SA.Color
+greylightA = SA.RGBA 20 20 20 0.2
+
+bluelightA :: SA.Color
+bluelightA = SA.RGBA 20 20 200 0.2
+
+redlightA :: SA.Color
+redlightA = SA.RGBA 200 20 20 0.2
 
 greylight :: SA.Color
 greylight = SA.RGB 20 20 20
@@ -34,6 +44,12 @@ palette 0 = greylight
 palette 1 = redlight
 palette 2 = bluelight
 palette n = palette $ n `mod` 3
+
+paletteA :: Int -> SA.Color
+paletteA 0 = greylightA
+paletteA 1 = redlightA
+paletteA 2 = bluelightA
+paletteA n = paletteA $ n `mod` 3
 
 red :: SA.Color
 red = SA.RGB 200 0 0
@@ -79,6 +95,21 @@ renderPoint pref idx v =
         , SA.fill (Just $ pref.color idx)
         ]
      ]
+
+renderVerticalBar :: forall t1 t2. SegmentPref -> Int -> Tuple Number Number -> HH.HTML t1 t2
+renderVerticalBar pref idx (Tuple v1 v2) =
+  SE.g
+    []
+    [ SE.line
+        [ SA.x1 $ pref.positionX $ idx
+        , SA.x2 $ pref.positionX $ idx
+        , SA.y1 $ pref.positionY $ pref.normalize v1
+        , SA.y2 $ pref.positionY $ pref.normalize v2
+        , SA.stroke (Just $ pref.color idx)
+        , SA.strokeWidth $ pref.width $ idx
+        ]
+     ]
+
 
 renderChartTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
 renderChartTimeseries xs =
@@ -128,6 +159,7 @@ renderMultiChartTimeseries xxs =
                  , positionY: positionY
                  , normalize: normalize
                  , color: const (palette idx)
+                 , width: const 1.0
                  }
      pref2 idx = { positionX: positionX
                  , positionY: positionY
@@ -138,7 +170,8 @@ renderMultiChartTimeseries xxs =
      pref3 idx = { positionX: positionX
                  , positionY: identity
                  , normalize: identity
-                 , color: const (palette idx)
+                 , color: const (paletteA idx)
+                 , width: const 3.0
                  }
 
 
@@ -147,7 +180,7 @@ renderMultiChartTimeseries xxs =
      renderMaybeSegment _ _ _ = Nothing
 
      renderMaybeOutage tsIdx ptIdx Nothing =
-         Just $ renderSegment (pref3 tsIdx) ptIdx (Tuple 0.0 250.0)
+         Just $ renderVerticalBar (pref3 tsIdx) ptIdx (Tuple 0.0 250.0)
      renderMaybeOutage tsIdx ptIdx _ =
          Nothing
 
