@@ -82,79 +82,15 @@ renderPoint pref idx v =
 
 renderChartTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
 renderChartTimeseries xs =
- let reals = List.catMaybes xs
-     vmin = minimum reals
-     vmax = maximum reals
-     normalize v = case (Tuple vmin vmax) of
-        Tuple (Just v0) (Just v1) ->
-          if v1 == v0
-          then 5.0
-          else (v - v0) / (v1 - v0)
-        _ -> 5.0
-     positionX idx = toNumber $ 610 - 6*idx
-     positionY y = 250.0 * (1.0 - y)
-
-     radius 0 = 6.0
-     radius 1 = 4.0
-     radius 2 = 3.0
-     radius _ = 2.4
-     
-     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
-     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
-
-     segments =
-        List.toUnfoldable
-        $ mapWithIndex (renderSegment pref1)
-        $ List.zip reals (List.drop 1 reals)
-     points =
-        List.toUnfoldable
-        $ mapWithIndex (renderPoint pref2)
-        $ reals
- in
- SE.svg [ SA.width 620.0
-        , SA.height 250.0
-        , SA.viewBox 0.0 0.0 620.0 250.0
-        ]
-        (segments <> points)
-
+  renderMultiChartTimeseries (List.singleton xs)
  
 renderChartDiffTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
 renderChartDiffTimeseries xs =
- let samples = List.catMaybes xs
-     reals = List.zipWith (\s0 s1 -> s1 - s0) (List.drop 1 samples) samples
-
-     vmin = minimum reals
-     vmax = maximum reals
-     normalize v = case (Tuple vmin vmax) of
-        Tuple (Just v0) (Just v1) ->
-          if v1 == v0
-          then 5.0
-          else (v - v0) / (v1 - v0)
-        _ -> 5.0
-     positionX idx = toNumber $ 610 - 6*idx
-     positionY y = 250.0 * (1.0 - y)
-     radius 0 = 6.0
-     radius 1 = 4.0
-     radius 2 = 3.0
-     radius _ = 2.4
-
-     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
-     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
-
-     segments =
-        List.toUnfoldable
-        $ mapWithIndex (renderSegment pref1)
-        $ List.zip reals (List.drop 1 reals)
-     points =
-        List.toUnfoldable
-        $ mapWithIndex (renderPoint pref2)
-        $ reals
+ let ys = List.zipWith f (List.drop 1 xs) xs
+     f (Just s0) (Just s1) = Just $ s1 - s0
+     f _ _ = Nothing
  in
- SE.svg [ SA.width 620.0
-        , SA.height 250.0
-        , SA.viewBox 0.0 0.0 620.0 250.0
-        ]
-    $ segments <> points
+ renderChartTimeseries ys
 
 renderChartSmoothTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
 renderChartSmoothTimeseries xs =
@@ -164,39 +100,10 @@ renderChartSmoothTimeseries xs =
         List.drop 30
        $ map average
        $ mapWithIndex (\idx _ -> List.take 30 $ List.drop idx $ samples) samples
-
-     vmin = minimum reals
-     vmax = maximum reals
-     normalize v = case (Tuple vmin vmax) of
-        Tuple (Just v0) (Just v1) ->
-          if v1 == v0
-          then 5.0
-          else (v - v0) / (v1 - v0)
-        _ -> 5.0
-     positionX idx = toNumber $ 610 - 6*idx
-     positionY y = 250.0 * (1.0 - y)
-     radius 0 = 6.0
-     radius 1 = 4.0
-     radius 2 = 3.0
-     radius _ = 2.4
-
-     pref1 = {positionX: positionX, positionY: positionY, normalize: normalize, color: const greylight}
-     pref2 = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: pointColor}
-
-     segments =
-        List.toUnfoldable
-        $ mapWithIndex (renderSegment pref1)
-        $ List.zip reals (List.drop 1 reals)
-     points =
-        List.toUnfoldable
-        $ mapWithIndex (renderPoint pref2)
-        $ reals
  in
- SE.svg [ SA.width 620.0
-        , SA.height 250.0
-        , SA.viewBox 0.0 0.0 620.0 250.0
-        ]
-    $ segments <> points
+ renderChartTimeseries $ map Just reals
+
+
 
 renderMultiChartTimeseries :: forall t1 t2. List (List (Maybe Number)) -> HH.HTML t1 t2
 renderMultiChartTimeseries xxs =
@@ -241,5 +148,3 @@ renderMultiChartTimeseries xxs =
           $ List.concat
           $ mapWithIndex (segments <> points) xxs
         )
-
- 

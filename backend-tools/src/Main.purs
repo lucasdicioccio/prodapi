@@ -190,7 +190,7 @@ renderPromHistory history chartspecs =
           timeseries = map (Map.lookup key <<< _.metrics) history
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls
-                      , renderMergeButon n lbls
+                      -- , renderMergeButon n lbls
                       ]
              , HH.td_ [ HH.text n ]
              , HH.td_ [ renderLabels lbls ]
