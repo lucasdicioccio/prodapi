@@ -72,6 +72,7 @@ type State =
   , metricsHistory :: List PromData
   , displayedCharts :: List ChartSpec
   , polling :: Maybe H.SubscriptionId
+  , pollingPeriod :: Milliseconds
   }
 
 data Action
@@ -81,7 +82,7 @@ data Action
   | UnZoomMetric Int
   | MergeMetric MetricName Labels
   | CycleChartSpec Int
-  | StartPolling
+  | StartPolling Milliseconds
   | StopPolling
 
 component
@@ -93,7 +94,7 @@ component =
     , render
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction
-        , initialize = Just StartPolling
+        , initialize = Just $ StartPolling $ Milliseconds 1000.0
         }
     }
 
@@ -106,6 +107,7 @@ initialState _ =
   , metricsHistory: Nil
   , displayedCharts: Nil
   , polling : Nothing
+  , pollingPeriod : Milliseconds 1000.0
   }
 
 render :: forall m. State -> H.ComponentHTML Action () m
@@ -260,7 +262,7 @@ renderGetMetrics :: forall m. State -> H.ComponentHTML Action () m
 renderGetMetrics st =
     case st.polling of
       Nothing -> unpause
-      Just _ -> pause
+      Just _ -> HH.div_ [ pause , hasten , slowdown ]
   where
     pause = HH.button
       [ HP.type_ HP.ButtonSubmit
@@ -270,15 +272,32 @@ renderGetMetrics st =
 
     unpause = HH.button
       [ HP.type_ HP.ButtonSubmit
-      , HE.onClick \_ -> Just StartPolling
+      , HE.onClick \_ -> Just $ StartPolling st.pollingPeriod
       ]
       [ HH.text "unpause" ]
 
+    Milliseconds ms = st.pollingPeriod
+
+    hasten = HH.button
+      [ HP.type_ HP.ButtonSubmit
+      , HE.onClick \_ -> Just $ StartPolling (Milliseconds $ ms / 2.0)
+      ]
+      [ HH.text "hasten" ]
+
+    slowdown = HH.button
+      [ HP.type_ HP.ButtonSubmit
+      , HE.onClick \_ -> Just $ StartPolling (Milliseconds $ ms * 2.0)
+      ]
+      [ HH.text "tame" ]
+
+
 handleAction :: forall output m. MonadAff m => Action -> H.HalogenM State Action () output m Unit
 handleAction = case _ of
-  StartPolling -> do
-    sid <- H.subscribe timer
-    H.modify_ _ { polling = Just sid }
+  StartPolling ms -> do
+    state <- H.get
+    maybe (pure unit) (H.unsubscribe) state.polling
+    sid <- H.subscribe $ timer ms
+    H.modify_ _ { polling = Just sid , pollingPeriod = ms }
 
   StopPolling -> do
     state <- H.get
@@ -347,10 +366,10 @@ cycleChartSpec idx1 xs = map cycleOne xs
 
     nextKind = cycleDisplayMode
 
-timer :: forall m. MonadAff m => EventSource m Action
-timer = EventSource.affEventSource \emitter -> do
+timer :: forall m. MonadAff m => Milliseconds -> EventSource m Action
+timer ms = EventSource.affEventSource \emitter -> do
   fiber <- Aff.forkAff $ forever do
-    Aff.delay $ Milliseconds 500.0
+    Aff.delay ms
     EventSource.emit emitter MakeMetricsRequest
   pure $ EventSource.Finalizer do
     Aff.killFiber (error "Event source finalized") fiber
