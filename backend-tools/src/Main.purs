@@ -69,7 +69,7 @@ type State =
   , metricsResult :: Maybe String
   , nsamples :: Int
   , nextrasamples :: Int
-  , metricsHistory :: List PromData
+  , metricsHistory :: List (Maybe PromData)
   , displayedCharts :: List ChartSpec
   , polling :: Maybe H.SubscriptionId
   , pollingPeriod :: Milliseconds
@@ -131,7 +131,7 @@ render st =
 
 renderPromHistory
   :: forall m
-  .  List PromData
+  .  List (Maybe PromData)
   -> List ChartSpec
   -> H.ComponentHTML Action () m
 renderPromHistory history chartspecs =
@@ -141,7 +141,7 @@ renderPromHistory history chartspecs =
       ]
   where
     allKeys :: Set (Tuple MetricName Labels)
-    allKeys = fold (map (Map.keys <<< _.metrics) history)
+    allKeys = fold (map (Map.keys <<< _.metrics) $ List.catMaybes history)
 
     renderZoomedCharts =
       HH.ul_
@@ -157,7 +157,7 @@ renderPromHistory history chartspecs =
 
     renderChart (SingleTimeSeries idx k n lbls) =
       let key  = Tuple n lbls
-          timeseries = map (Map.lookup key <<< _.metrics) history
+          timeseries = map join $ map (map (Map.lookup key <<< _.metrics)) history
       in
       HH.div_
         [ HH.h4_ [ HH.text n , HH.text " ", HH.em_ [ HH.text $ showDisplayMode k ] ]
@@ -172,7 +172,7 @@ renderPromHistory history chartspecs =
 
     renderChart mts@(MultiTimeSeries idx _) =
       let 
-          timeseries key = map (Map.lookup key <<< _.metrics) history
+          timeseries key = map join $ map (map (Map.lookup key <<< _.metrics)) history
       in
       HH.div_
         [ HH.h4_ [ HH.em_ [ HH.text "combined plot" ] ]
@@ -187,7 +187,7 @@ renderPromHistory history chartspecs =
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
-          timeseries = map (Map.lookup key <<< _.metrics) history
+          timeseries = map (Map.lookup key <<< _.metrics) $ List.catMaybes history
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls
                       -- , renderMergeButon n lbls
@@ -305,17 +305,22 @@ handleAction = case _ of
     H.modify_ _ { polling = Nothing }
 
   MakeStatusRequest event -> do
-    response <- H.liftAff $ AX.get AXRF.string ("/status")
+    let req = AX.defaultRequest { url = "/status", responseFormat = AXRF.string , timeout = Just $ Milliseconds 250.0 }
+    response <- H.liftAff $ AX.request req
     H.modify_ _ { statusResult = map _.body (hush response) }
 
   MakeMetricsRequest -> do
-    let url = "/metrics"
-    response <- H.liftAff $ AX.get AXRF.string url
+    let req = AX.defaultRequest
+                { url = "/metrics"
+                , responseFormat = AXRF.string 
+                , timeout = Just $ Milliseconds 250.0 
+                }
+    response <- H.liftAff $ AX.request req
     let prom = hush response >>= parseBody
-    let promlist = maybe Nil (\dat -> List.singleton $ fromPromDoc dat) prom
+    let promlist = map fromPromDoc prom
     H.modify_ \state -> state { metricsResult = map _.body (hush response)
                               , metricsHistory = List.take (state.nsamples + state.nextrasamples)
-                                  $ promlist <> state.metricsHistory
+                                  $ List.singleton promlist <> state.metricsHistory
                               }
 
   MergeMetric n lbls -> do

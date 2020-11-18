@@ -124,21 +124,48 @@ renderMultiChartTimeseries xxs =
      radius 2 = 3.0
      radius _ = 2.4
      
-     pref1 idx = {positionX: positionX, positionY: positionY, normalize: normalize, color: const (palette idx)}
-     pref2 idx = {positionX: positionX, positionY: positionY, normalize: normalize, radius: radius, color: const (palette idx)}
+     pref1 idx = { positionX: positionX
+                 , positionY: positionY
+                 , normalize: normalize
+                 , color: const (palette idx)
+                 }
+     pref2 idx = { positionX: positionX
+                 , positionY: positionY
+                 , normalize: normalize
+                 , radius: radius
+                 , color: const (palette idx)
+                 }
+     pref3 idx = { positionX: positionX
+                 , positionY: identity
+                 , normalize: identity
+                 , color: const (palette idx)
+                 }
+
+
+     renderMaybeSegment tsIdx ptIdx (Tuple (Just v1) (Just v2)) =
+         Just $ renderSegment (pref1 tsIdx) ptIdx (Tuple v1 v2)
+     renderMaybeSegment _ _ _ = Nothing
+
+     renderMaybeOutage tsIdx ptIdx Nothing =
+         Just $ renderSegment (pref3 tsIdx) ptIdx (Tuple 0.0 250.0)
+     renderMaybeOutage tsIdx ptIdx _ =
+         Nothing
 
      segments tsIdx mreals =
-        let reals = List.catMaybes mreals
-        in
         List.toUnfoldable
-        $ mapWithIndex (renderSegment $ pref1 tsIdx)
-        $ List.zip reals (List.drop 1 reals)
+        $ List.catMaybes
+        $ mapWithIndex (renderMaybeSegment tsIdx)
+        $ List.zip mreals (List.drop 1 mreals)
      points tsIdx mreals =
-        let reals = List.catMaybes mreals
-        in
         List.toUnfoldable
-        $ mapWithIndex (renderPoint $ pref2 tsIdx)
-        $ reals
+        $ List.catMaybes
+        $ mapWithIndex (\ptIdx mval -> map (renderPoint (pref2 tsIdx) ptIdx) mval)
+        $ mreals
+     outagebars tsIdx mreals =
+        List.toUnfoldable
+        $ List.catMaybes
+        $ mapWithIndex (renderMaybeOutage tsIdx)
+        $ mreals
  in
  SE.svg [ SA.width 620.0
         , SA.height 250.0
@@ -146,5 +173,5 @@ renderMultiChartTimeseries xxs =
         ]
         ( List.toUnfoldable
           $ List.concat
-          $ mapWithIndex (segments <> points) xxs
+          $ mapWithIndex (segments <> points <> outagebars) xxs
         )
