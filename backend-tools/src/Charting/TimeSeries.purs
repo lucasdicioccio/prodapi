@@ -2,6 +2,7 @@
 module Charting.TimeSeries where
 
 import Prelude
+import Global (isFinite)
 import Data.Foldable (minimum, maximum, sum)
 import Data.Int (toNumber)
 import Data.List as List
@@ -175,9 +176,15 @@ renderMultiChartTimeseries xxs =
                  }
 
 
-     renderMaybeSegment tsIdx ptIdx (Tuple (Just v1) (Just v2)) =
+     renderMaybeSegment tsIdx ptIdx (Tuple (Just v1) (Just v2))
+       | isFinite v1 && isFinite v2 =
          Just $ renderSegment (pref1 tsIdx) ptIdx (Tuple v1 v2)
      renderMaybeSegment _ _ _ = Nothing
+
+     renderMaybePoint tsIdx ptIdx (Just v)
+       | isFinite v =
+          Just $ renderPoint (pref2 tsIdx) ptIdx v
+     renderMaybePoint _ _ _ = Nothing
 
      renderMaybeOutage tsIdx ptIdx Nothing =
          Just $ renderVerticalBar (pref3 tsIdx) ptIdx (Tuple 0.0 250.0)
@@ -192,7 +199,7 @@ renderMultiChartTimeseries xxs =
      points tsIdx mreals =
         List.toUnfoldable
         $ List.catMaybes
-        $ mapWithIndex (\ptIdx mval -> map (renderPoint (pref2 tsIdx) ptIdx) mval)
+        $ mapWithIndex (renderMaybePoint tsIdx)
         $ mreals
      outagebars tsIdx mreals =
         List.toUnfoldable

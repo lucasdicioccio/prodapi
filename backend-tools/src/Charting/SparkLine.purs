@@ -2,6 +2,7 @@
 module Charting.SparkLine where
 
 import Prelude
+import Global (isFinite)
 import Data.Int (toNumber)
 import Data.Maybe (Maybe(..))
 import Data.Foldable (minimum, maximum)
@@ -49,7 +50,8 @@ renderSparkline xs =
                 , SA.strokeWidth 1.0
                 ]
 
-     render idx (Tuple (Just v1) (Just v2)) =
+     render idx (Tuple (Just v1) (Just v2))
+       | isFinite v1 && isFinite v2 =
          mkSegment idx v1 v2
 
      render idx _ =
