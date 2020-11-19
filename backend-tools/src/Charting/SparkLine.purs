@@ -29,19 +29,36 @@ renderSparkline xs =
      radius 1 = 2.0
      radius 2 = 1.5
      radius _ = 1.2
- in
- SE.svg [ SA.width 310.0
-        , SA.height 20.0
-        , SA.viewBox 0.0 0.0 310.0 20.0
-        ]
-    $ List.toUnfoldable
-    $ mapWithIndex (\idx (Tuple v1 v2) ->
+
+     mkSegment idx v1 v2 =
         SE.line [ SA.x1 $ positionX idx
                 , SA.y1 $ positionY $ normalize v1
                 , SA.x2 $ positionX (idx + 1)
                 , SA.y2 $ positionY $ normalize v2
                 , SA.stroke (Just $ SA.RGBA 20 20 20 0.8)
                 , SA.strokeWidth 1.0
-                ])
-    $ List.zip reals (List.drop 1 reals)
+                ]
 
+
+     mkVerticalBar idx =
+        SE.line [ SA.x1 $ positionX idx
+                , SA.y1 $ 0.0
+                , SA.x2 $ positionX idx
+                , SA.y2 $ 20.0
+                , SA.stroke (Just $ SA.RGBA 120 20 20 0.8)
+                , SA.strokeWidth 1.0
+                ]
+
+     render idx (Tuple (Just v1) (Just v2)) =
+         mkSegment idx v1 v2
+
+     render idx _ =
+         mkVerticalBar idx
+ in
+ SE.svg [ SA.width 310.0
+        , SA.height 20.0
+        , SA.viewBox 0.0 0.0 310.0 20.0
+        ]
+    $ List.toUnfoldable
+    $ mapWithIndex render
+    $ List.zip xs (List.drop 1 xs)

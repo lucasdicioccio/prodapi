@@ -187,7 +187,7 @@ renderPromHistory history chartspecs =
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
-          timeseries = map (Map.lookup key <<< _.metrics) $ List.catMaybes history
+          timeseries = map join $ map (map (Map.lookup key <<< _.metrics)) history
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls
                       -- , renderMergeButon n lbls
