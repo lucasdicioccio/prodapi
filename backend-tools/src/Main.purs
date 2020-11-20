@@ -10,10 +10,13 @@ import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.List (List(..))
 import Data.List as List
 import Effect (Effect)
+import Effect.Class (liftEffect)
+import Effect.Console as Console
 import Effect.Exception (error)
 import Effect.Aff (Milliseconds(..))
 import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff)
+import Effect.Ref as Ref
 import Halogen as H
 import Halogen.Aff (awaitBody, runHalogenAff)
 import Halogen.HTML as HH
@@ -53,10 +56,15 @@ fromPromDoc metrics =
     toHelp (HelpLine n s)              = Just (Tuple n s)
     toHelp _                           = Nothing
 
+foreign import tabUrl :: (String -> Effect Unit) -> Effect Unit
+
 main :: Effect Unit
-main = runHalogenAff do
-  body <- awaitBody
-  runUI component unit body
+main = do
+  ref <- Ref.new ""
+  tabUrl (\url -> Ref.write url ref >>= (\_ -> Console.log url))
+  runHalogenAff do
+    body <- awaitBody
+    runUI (component ref) unit body
 
 showDisplayMode :: ChartDisplayMode -> String
 showDisplayMode = case _ of
@@ -87,13 +95,14 @@ data Action
 
 component
   :: forall query input output m. MonadAff m
-  => H.Component HH.HTML query input output m
-component =
+  => Ref.Ref String
+  -> H.Component HH.HTML query input output m
+component url =
   H.mkComponent
     { initialState
     , render
     , eval: H.mkEval $ H.defaultEval
-        { handleAction = handleAction
+        { handleAction = handleAction url
         , initialize = Just $ StartPolling $ Milliseconds 1000.0
         }
     }
@@ -291,8 +300,11 @@ renderGetMetrics st =
       [ HH.text "tame" ]
 
 
-handleAction :: forall output m. MonadAff m => Action -> H.HalogenM State Action () output m Unit
-handleAction = case _ of
+handleAction :: forall output m. MonadAff m
+ => Ref.Ref String
+ -> Action
+ -> H.HalogenM State Action () output m Unit
+handleAction urlRef = case _ of
   StartPolling ms -> do
     state <- H.get
     maybe (pure unit) (H.unsubscribe) state.polling
@@ -305,13 +317,15 @@ handleAction = case _ of
     H.modify_ _ { polling = Nothing }
 
   MakeStatusRequest event -> do
-    let req = AX.defaultRequest { url = "/status", responseFormat = AXRF.string , timeout = Just $ Milliseconds 250.0 }
+    baseUrl <- liftEffect $ Ref.read urlRef
+    let req = AX.defaultRequest { url = baseUrl <> "/status", responseFormat = AXRF.string , timeout = Just $ Milliseconds 250.0 }
     response <- H.liftAff $ AX.request req
     H.modify_ _ { statusResult = map _.body (hush response) }
 
   MakeMetricsRequest -> do
+    baseUrl <- liftEffect $ Ref.read urlRef
     let req = AX.defaultRequest
-                { url = "/metrics"
+                { url = baseUrl <> "/metrics"
                 , responseFormat = AXRF.string 
                 , timeout = Just $ Milliseconds 250.0 
                 }

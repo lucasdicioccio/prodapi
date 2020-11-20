@@ -4,7 +4,8 @@ You can edit this file as you like.
 -}
 { name = "my-project"
 , dependencies =
-  [ "affjax"
+  [ "aff-promise"
+  , "affjax"
   , "console"
   , "effect"
   , "generics-rep"
@@ -15,6 +16,7 @@ You can edit this file as you like.
   , "parsing"
   , "psci-support"
   , "tuples"
+  , "uri"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
