@@ -3,7 +3,7 @@ module Charting.TimeSeries where
 
 import Prelude
 import Global (isFinite)
-import Data.Foldable (minimum, maximum, sum)
+import Data.Foldable (minimum, maximum)
 import Data.Int (toNumber)
 import Data.List as List
 import Data.List (List, mapWithIndex)
@@ -108,7 +108,6 @@ renderVerticalBar pref idx (Tuple v1 v2) =
     , SA.strokeWidth $ pref.width $ idx
     ]
 
-
 renderChartTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
 renderChartTimeseries xs =
   renderMultiChartTimeseries (List.singleton xs)
@@ -120,19 +119,6 @@ renderChartDiffTimeseries xs =
      f _ _ = Nothing
  in
  renderChartTimeseries ys
-
-renderChartSmoothTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
-renderChartSmoothTimeseries xs =
- let samples = List.catMaybes xs
-     average zs = (sum zs) / (toNumber $ List.length zs)
-     reals = 
-        List.drop 30
-       $ map average
-       $ mapWithIndex (\idx _ -> List.take 30 $ List.drop idx $ samples) samples
- in
- renderChartTimeseries $ map Just reals
-
-
 
 renderMultiChartTimeseries :: forall t1 t2. List (List (Maybe Number)) -> HH.HTML t1 t2
 renderMultiChartTimeseries xxs =

@@ -30,9 +30,9 @@ import Data.Tuple (Tuple(..))
 import Data.Tuple as Tuple
 import Data.Map (Map)
 import Data.Map as Map
-import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDisplayMode, specKeys)
+import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDisplayMode) 
 import Charting.SparkLine (renderSparkline)
-import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries, renderChartSmoothTimeseries, renderMultiChartTimeseries)
+import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries)
 
 import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
 
@@ -56,7 +56,6 @@ showDisplayMode :: ChartDisplayMode -> String
 showDisplayMode = case _ of
   Samples -> "raw"
   DiffSamples -> "delta"
-  Smooth -> "smooth"
 
 type State =
   { metricsResult :: Maybe String
@@ -73,7 +72,6 @@ data Action
   = MakeMetricsRequest
   | ZoomMetric MetricName Labels
   | UnZoomMetric Int
-  | MergeMetric MetricName Labels
   | CycleChartSpec Int
   | StartPolling Milliseconds
   | StopPolling
@@ -145,7 +143,7 @@ renderPromHistory history chartspecs =
         $ Set.toUnfoldable
         $ allKeys
 
-    renderChart (SingleTimeSeries idx k n lbls) =
+    renderChart (TimeSeries idx k n lbls) =
       let key  = Tuple n lbls
           timeseries = map join $ map (map (Map.lookup key <<< _.metrics)) history
       in
@@ -155,23 +153,8 @@ renderPromHistory history chartspecs =
         , case k of
             Samples -> renderChartTimeseries $ List.take 100 timeseries
             DiffSamples -> renderChartDiffTimeseries $ List.take 100 timeseries
-            Smooth -> renderChartSmoothTimeseries $ timeseries
         , renderUnZoomButton idx
         , renderCycleChartSpec idx
-        ]
-
-    renderChart mts@(MultiTimeSeries idx _) =
-      let 
-          timeseries key = map join $ map (map (Map.lookup key <<< _.metrics)) history
-      in
-      HH.div_
-        [ HH.h4_ [ HH.em_ [ HH.text "combined plot" ] ]
-        , renderUnZoomButton idx
-        , renderMultiChartTimeseries
-          $ map (List.take 100)
-          $ map timeseries
-          $ specKeys
-          $ mts
         ]
 
     renderPromLine key =
@@ -180,7 +163,6 @@ renderPromHistory history chartspecs =
           timeseries = map join $ map (map (Map.lookup key <<< _.metrics)) history
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls
-                      -- , renderMergeButon n lbls
                       ]
              , HH.td_ [ HH.text n ]
              , HH.td_ [ renderLabels lbls ]
@@ -201,13 +183,6 @@ renderPromHistory history chartspecs =
         , HE.onClick \_ -> Just (UnZoomMetric idx)
         ]
         [ HH.text "-" ]
-
-    renderMergeButon n lbls =
-      HH.button
-        [ HP.type_ HP.ButtonSubmit
-        , HE.onClick \_ -> Just (MergeMetric n lbls)
-        ]
-        [ HH.text "$" ]
 
     renderCycleChartSpec idx =
       HH.button
@@ -305,26 +280,10 @@ handleAction = case _ of
                             $ List.singleton promlist <> st.metricsHistory
                         }
 
-  MergeMetric n lbls -> do
-    H.modify_ \state -> 
-      let idx = fromMaybe 0 (maximum (map specIndex state.displayedCharts))
-          found = state.displayedCharts
-                  # List.find (\cs -> specIndex cs == idx)
-          cs2 = SingleTimeSeries (idx + 1) Samples n lbls
-
-          merged = case found of
-            Nothing -> cs2
-            Just cs1@(SingleTimeSeries _ _ _ _) -> MultiTimeSeries (idx + 2) (List.fromFoldable [cs2,cs1])
-            Just (MultiTimeSeries _ xs) -> MultiTimeSeries (idx + 2) (List.snoc xs cs2)
-      in state { displayedCharts = state.displayedCharts
-                     # removeChartSpec idx
-                     # addChartSpec merged
-               }
-
   ZoomMetric n lbls -> do
     H.modify_ \state -> 
       let idx = 1 + fromMaybe 0 (maximum (map specIndex state.displayedCharts))
-          cs = SingleTimeSeries idx Samples n lbls
+          cs = TimeSeries idx Samples n lbls
       in state { displayedCharts = addChartSpec cs state.displayedCharts }
 
   UnZoomMetric idx -> do
@@ -345,10 +304,9 @@ addChartSpec = flip List.snoc
 cycleChartSpec :: Int -> List ChartSpec -> List ChartSpec
 cycleChartSpec idx1 xs = map cycleOne xs
   where
-    cycleOne spec@(MultiTimeSeries _ _) = spec
-    cycleOne spec@(SingleTimeSeries idx2 k n lbls) =
+    cycleOne spec@(TimeSeries idx2 k n lbls) =
       if (idx1 == idx2)
-      then SingleTimeSeries idx1 (nextKind k) n lbls
+      then TimeSeries idx1 (nextKind k) n lbls
       else spec
 
     nextKind = cycleDisplayMode

@@ -9,21 +9,16 @@ import Data.Tuple (Tuple(..))
 data ChartDisplayMode
   = Samples
   | DiffSamples
-  | Smooth
 
 cycleDisplayMode :: ChartDisplayMode -> ChartDisplayMode
 cycleDisplayMode Samples = DiffSamples
-cycleDisplayMode DiffSamples = Smooth
-cycleDisplayMode Smooth = Samples
+cycleDisplayMode DiffSamples = Samples
 
 data ChartSpec
-  = SingleTimeSeries Int ChartDisplayMode MetricName Labels
-  | MultiTimeSeries Int (List ChartSpec)
+  = TimeSeries Int ChartDisplayMode MetricName Labels
 
 specKeys :: ChartSpec -> List (Tuple MetricName Labels)
-specKeys (SingleTimeSeries _ _ n lbls) = List.singleton (Tuple n lbls)
-specKeys (MultiTimeSeries _ xs) = List.concatMap specKeys xs
+specKeys (TimeSeries _ _ n lbls) = List.singleton (Tuple n lbls)
 
 specIndex :: ChartSpec -> Int
-specIndex (SingleTimeSeries n _ _ _) = n
-specIndex (MultiTimeSeries n _) = n
+specIndex (TimeSeries n _ _ _) = n
