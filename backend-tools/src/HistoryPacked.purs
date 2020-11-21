@@ -6,12 +6,15 @@ module HistoryPacked where
 
 import Prelude
 import Effect (Effect)
+import Data.Array as Array
 import Data.Foldable (foldM)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (traverse)
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.List (List)
 import Data.List as List
-import Data.Unfoldable (class Unfoldable, unfoldr)
+import Data.Unfoldable (class Unfoldable)
+import Data.UInt as UInt
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Set (Set)
@@ -19,7 +22,7 @@ import Data.Set as Set
 
 import Parsing.Prometheus (PromDoc, Line(..), Labels, MetricName, MetricValue)
 
-import Data.ArrayBuffer.Types (Float64Array)
+import Data.ArrayBuffer.Types (Float64Array, Uint8Array)
 import Data.ArrayBuffer.Typed as AB
 
 type PromData =
@@ -39,8 +42,8 @@ fromPromDoc metrics =
     toHelp _                           = Nothing
 
 type HistoryKey = Tuple MetricName Labels
-type HistoryDataInternal = Float64Array
-type HistoryData = Array Number
+type HistoryDataInternal = Tuple Float64Array Uint8Array
+type HistoryData = List (Maybe Number)
 
 type History =
   { knownKeys :: Set HistoryKey
@@ -57,8 +60,17 @@ emptyHistory = { knownKeys: Set.empty , timeseriesData: Map.empty , ptr: 0}
 historyKeys :: forall f. Unfoldable f => History -> f HistoryKey
 historyKeys h = Set.toUnfoldable $ h.knownKeys
 
-toArrayMap :: History -> Effect (Map HistoryKey (Array Number))
-toArrayMap h = traverse AB.toArray h.timeseriesData
+toArrayMap :: History -> Effect (Map HistoryKey HistoryData)
+toArrayMap h = traverse adapt h.timeseriesData
+  where
+    adapt :: HistoryDataInternal -> Effect HistoryData
+    adapt (Tuple buf mask) =
+        List.zipWith f
+          <$> map List.fromFoldable (AB.toArray buf)
+          <*> map List.fromFoldable (AB.toArray mask)
+
+    f :: Number -> UInt.UInt -> Maybe Number
+    f v k = if UInt.fromInt 0 == k then Nothing else Just v
 
 updateHistory' :: Maybe PromData -> History -> Effect History
 updateHistory' Nothing h = pure h
@@ -81,18 +93,21 @@ updateHistory' (Just promdata) h = do
         Tuple Nothing Nothing ->
           pure map0 -- note: should not be possible since we iterate on known keys
 
-        Tuple Nothing (Just buf) -> do
-          _ <- AB.set buf (Just h.ptr) [-42.0]
+        Tuple Nothing (Just (Tuple buf mask)) -> do
+          _ <- AB.set buf (Just h.ptr) [0.0]
+          _ <- AB.set mask (Just h.ptr) [UInt.fromInt 0]
           pure map0
 
         Tuple (Just newVal) Nothing -> do
-          buf <- newBuf
+          tup@(Tuple buf mask) <- newBuf
           _ <- AB.set buf (Just h.ptr) [newVal]
-          pure $ Map.insert key buf map0
+          _ <- AB.set mask (Just h.ptr) [UInt.fromInt 1]
+          pure $ Map.insert key tup map0
 
-        Tuple (Just newVal) (Just buf) -> do
+        Tuple (Just newVal) (Just (Tuple buf mask)) -> do
           _ <- AB.set buf (Just h.ptr) [newVal]
+          _ <- AB.set mask (Just h.ptr) [UInt.fromInt 1]
           pure map0
 
 newBuf :: Effect HistoryDataInternal
-newBuf = AB.empty historyLen
+newBuf = Tuple <$> AB.empty historyLen <*> AB.empty historyLen

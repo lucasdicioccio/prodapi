@@ -117,7 +117,6 @@ renderZoomedCharts st =
           timeseries = Map.lookup key st.historyData
             # map (List.fromFoldable)
             # fromMaybe Nil
-            # map Just
       in
       HH.div_
         [ HH.h4_ [ HH.text n , HH.text " ", HH.em_ [ HH.text $ showDisplayMode k ] ]
@@ -157,7 +156,6 @@ renderSparkTable st =
           timeseries = Map.lookup key st.historyData
             # map (List.fromFoldable)
             # fromMaybe Nil
-            # map Just
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]
              , HH.td_ [ HH.text n ]
