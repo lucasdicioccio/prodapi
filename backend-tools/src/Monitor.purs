@@ -65,17 +65,16 @@ type State =
   , polling :: Maybe H.SubscriptionId
   , pollingPeriod :: Milliseconds
   , metricsRequest :: Effect (AX.Request String)
-  , cache :: Cache
-  , metricsHistory :: List (Maybe PromData)
+  , history :: History
   }
 
-type Cache =
+type History =
   { allKeys :: Set (Tuple MetricName Labels)
   , timeseriesData :: Map (Tuple MetricName Labels) (List (Maybe Number))
   }
 
-emptyCache :: Cache
-emptyCache = { allKeys: Set.empty , timeseriesData: Map.empty }
+emptyHistory :: History
+emptyHistory = { allKeys: Set.empty , timeseriesData: Map.empty }
 
 data Action
   = MakeMetricsRequest
@@ -107,8 +106,7 @@ initialState _ =
   , polling : Nothing
   , pollingPeriod : Milliseconds 1000.0
   , metricsRequest : defaultMakeRequest
-  , cache : emptyCache
-  , metricsHistory: Nil
+  , history : emptyHistory
   }
   where
     defaultMakeRequest =
@@ -135,7 +133,7 @@ renderZoomedCharts st =
   where
     renderChart (TimeSeries idx k n lbls) =
       let key  = Tuple n lbls
-          timeseries = Map.lookup key st.cache.timeseriesData
+          timeseries = Map.lookup key st.history.timeseriesData
             # fromMaybe Nil
             # List.reverse
       in
@@ -170,12 +168,12 @@ renderSparkTable st =
       HH.table_
         $ map (\key -> renderPromLine key)
         $ Set.toUnfoldable
-        $ st.cache.allKeys
+        $ st.history.allKeys
   where
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
-          timeseries = Map.lookup key st.cache.timeseriesData
+          timeseries = Map.lookup key st.history.timeseriesData
             # fromMaybe Nil
             # List.reverse
       in
@@ -278,10 +276,10 @@ handleAction = case _ of
     let prom = hush response >>= parseBody
     let promlist = map fromPromDoc prom
     H.modify_ \st -> st { metricsResult = map _.body (hush response)
-                        , cache = updateCache
+                        , history = updateHistory
                               (st.nsamples + st.nextrasamples)
                               promlist
-                              st.cache
+                              st.history
                         }
 
   ZoomMetric n lbls -> do
@@ -297,19 +295,19 @@ handleAction = case _ of
     H.modify_ \state -> 
       state { displayedCharts = cycleChartSpec idx state.displayedCharts }
 
-updateCache :: Int -> Maybe PromData -> Cache -> Cache
-updateCache _ Nothing c = c
-updateCache histlen (Just promdata) c =
-  c { allKeys = unionKeys
+updateHistory :: Int -> Maybe PromData -> History -> History
+updateHistory _ Nothing h = h
+updateHistory histlen (Just promdata) h =
+  h { allKeys = unionKeys
     , timeseriesData = map (List.take histlen) wholeData
     }
   where
     recentKeys = Map.keys promdata.metrics
-    unionKeys = c.allKeys `Set.union` recentKeys
+    unionKeys = h.allKeys `Set.union` recentKeys
 
-    newData = Map.difference promdata.metrics c.timeseriesData
-    agedData = Map.difference c.timeseriesData promdata.metrics
-    updatedData = Map.intersectionWith append c.timeseriesData promdata.metrics
+    newData = Map.difference promdata.metrics h.timeseriesData
+    agedData = Map.difference h.timeseriesData promdata.metrics
+    updatedData = Map.intersectionWith append h.timeseriesData promdata.metrics
 
     wholeData = Map.unions
       [ updatedData

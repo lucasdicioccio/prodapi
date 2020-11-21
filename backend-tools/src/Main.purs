@@ -16,7 +16,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
-import Monitor (render, handleAction, State, Action(..), emptyCache)
+import Monitor (render, handleAction, State, Action(..), emptyHistory)
 
 foreign import tabUrl :: (String -> Effect Unit) -> Effect Unit
 
@@ -47,12 +47,11 @@ initialState urlRef _ =
   { metricsResult: Nothing
   , nsamples: 100
   , nextrasamples: 30
-  , metricsHistory: Nil
   , displayedCharts: Nil
   , polling : Nothing
   , pollingPeriod : Milliseconds 1000.0
   , metricsRequest : defaultMakeRequest
-  , cache : emptyCache
+  , history : emptyHistory
   }
   where
     defaultMakeRequest =  do
