@@ -24,7 +24,6 @@ import Halogen.Query.EventSource as EventSource
 import Text.Parsing.Parser (runParser)
 
 import Data.Foldable (maximum)
-import Data.Set as Set
 import Data.Tuple (Tuple(..))
 import Data.Tuple as Tuple
 import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDisplayMode) 
@@ -32,7 +31,7 @@ import Charting.SparkLine (renderSparkline)
 import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries)
 
 import Parsing.Prometheus (promDoc, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
-import History (History, emptyHistory, lookupHistory, hdToList, updateHistory)
+import History (History, emptyHistory, lookupHistory, hdToList, updateHistory, historyKeys)
 
 showDisplayMode :: ChartDisplayMode -> String
 showDisplayMode = case _ of
@@ -141,8 +140,7 @@ renderSparkTable
 renderSparkTable st =
       HH.table_
         $ map (\key -> renderPromLine key)
-        $ Set.toUnfoldable
-        $ st.history.allKeys
+        $ historyKeys st.history
   where
     renderPromLine key =
       let n    = Tuple.fst key

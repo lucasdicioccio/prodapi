@@ -7,8 +7,8 @@ module History where
 import Prelude
 import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..))
-import Data.List.Lazy (List)
-import Data.List.Lazy as List
+import Data.List as List
+import Data.Array as Array
 import Data.Unfoldable (class Unfoldable)
 import Data.Map (Map)
 import Data.Map as Map
@@ -24,8 +24,8 @@ type PromData =
 
 fromPromDoc :: PromDoc -> PromData
 fromPromDoc metrics =
-  { metrics: Map.fromFoldable $ List.catMaybes $ map toMetric $ List.fromFoldable metrics
-  , helps: Map.fromFoldable $ List.catMaybes $ map toHelp $ List.fromFoldable metrics
+  { metrics: Map.fromFoldable $ List.catMaybes $ map toMetric metrics
+  , helps: Map.fromFoldable $ List.catMaybes $ map toHelp metrics
   }
   where
     toMetric (MetricLine n lbls val _) = let key = Tuple n lbls in Just $ Tuple key val
@@ -34,18 +34,21 @@ fromPromDoc metrics =
     toHelp _                           = Nothing
 
 type HistoryKey = Tuple MetricName Labels
-type HistoryData = List (Maybe Number)
+type HistoryData = Array (Maybe Number)
 
 type History =
-  { allKeys :: Set HistoryKey
+  { knownKeys :: Set HistoryKey
   , timeseriesData :: Map HistoryKey HistoryData
   }
 
 emptyHistory :: History
-emptyHistory = { allKeys: Set.empty , timeseriesData: Map.empty }
+emptyHistory = { knownKeys: Set.empty , timeseriesData: Map.empty }
+
+historyKeys :: forall f. Unfoldable f => History -> f HistoryKey
+historyKeys h = Set.toUnfoldable $ h.knownKeys
 
 hdToList :: forall f. Unfoldable f => HistoryData -> f (Maybe Number)
-hdToList = List.toUnfoldable
+hdToList = Array.toUnfoldable
 
 lookupHistory :: HistoryKey -> History -> Maybe HistoryData
 lookupHistory key h = Map.lookup key h.timeseriesData
@@ -57,12 +60,12 @@ updateHistory n doc =
 updateHistory' :: Int -> Maybe PromData -> History -> History
 updateHistory' _ Nothing h = h
 updateHistory' histlen (Just promdata) h =
-  h { allKeys = unionKeys
-    , timeseriesData = map (List.take histlen) wholeData
+  h { knownKeys = allKeys
+    , timeseriesData = map (Array.take histlen) wholeData
     }
   where
     recentKeys = Map.keys promdata.metrics
-    unionKeys = h.allKeys `Set.union` recentKeys
+    allKeys = h.knownKeys `Set.union` recentKeys
 
     newData = Map.difference promdata.metrics h.timeseriesData
     agedData = Map.difference h.timeseriesData promdata.metrics
@@ -70,8 +73,8 @@ updateHistory' histlen (Just promdata) h =
 
     wholeData = Map.unions
       [ updatedData
-      , map (List.singleton <<< Just) newData
-      , map (List.cons Nothing) agedData
+      , map (Array.singleton <<< Just) newData
+      , map (Array.cons Nothing) agedData
       ]
 
-    append xs x = List.cons (Just x) xs
+    append xs x = Array.cons (Just x) xs
