@@ -16,7 +16,8 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
-import Monitor (render, handleAction, State, Action(..), emptyHistory)
+import Monitor (render, handleAction, State, Action(..))
+import History (emptyHistory)
 
 foreign import tabUrl :: (String -> Effect Unit) -> Effect Unit
 

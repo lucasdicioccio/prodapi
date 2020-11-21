@@ -24,33 +24,15 @@ import Halogen.Query.EventSource as EventSource
 import Text.Parsing.Parser (runParser)
 
 import Data.Foldable (maximum)
-import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
 import Data.Tuple as Tuple
-import Data.Map (Map)
-import Data.Map as Map
 import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDisplayMode) 
 import Charting.SparkLine (renderSparkline)
 import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries)
 
-import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
-
-type PromData =
-  { metrics :: Map (Tuple MetricName Labels) MetricValue
-  , helps :: Map MetricName String
-  }
-
-fromPromDoc :: PromDoc -> PromData
-fromPromDoc metrics =
-  { metrics: Map.fromFoldable $ List.catMaybes $ map toMetric metrics
-  , helps: Map.fromFoldable $ List.catMaybes $ map toHelp metrics
-  }
-  where
-    toMetric (MetricLine n lbls val _) = let key = Tuple n lbls in Just $ Tuple key val
-    toMetric _                         = Nothing
-    toHelp (HelpLine n s)              = Just (Tuple n s)
-    toHelp _                           = Nothing
+import Parsing.Prometheus (promDoc, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
+import History (History, emptyHistory, lookupHistory, updateHistory)
 
 showDisplayMode :: ChartDisplayMode -> String
 showDisplayMode = case _ of
@@ -67,14 +49,6 @@ type State =
   , metricsRequest :: Effect (AX.Request String)
   , history :: History
   }
-
-type History =
-  { allKeys :: Set (Tuple MetricName Labels)
-  , timeseriesData :: Map (Tuple MetricName Labels) (List (Maybe Number))
-  }
-
-emptyHistory :: History
-emptyHistory = { allKeys: Set.empty , timeseriesData: Map.empty }
 
 data Action
   = MakeMetricsRequest
@@ -133,9 +107,8 @@ renderZoomedCharts st =
   where
     renderChart (TimeSeries idx k n lbls) =
       let key  = Tuple n lbls
-          timeseries = Map.lookup key st.history.timeseriesData
+          timeseries = lookupHistory key st.history
             # fromMaybe Nil
-            # List.reverse
       in
       HH.div_
         [ HH.h4_ [ HH.text n , HH.text " ", HH.em_ [ HH.text $ showDisplayMode k ] ]
@@ -173,9 +146,8 @@ renderSparkTable st =
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
-          timeseries = Map.lookup key st.history.timeseriesData
+          timeseries = lookupHistory key st.history
             # fromMaybe Nil
-            # List.reverse
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]
              , HH.td_ [ HH.text n ]
@@ -274,11 +246,10 @@ handleAction = case _ of
   MakeMetricsRequest -> do
     response <- getMetrics
     let prom = hush response >>= parseBody
-    let promlist = map fromPromDoc prom
     H.modify_ \st -> st { metricsResult = map _.body (hush response)
                         , history = updateHistory
                               (st.nsamples + st.nextrasamples)
-                              promlist
+                              prom
                               st.history
                         }
 
@@ -294,30 +265,6 @@ handleAction = case _ of
   CycleChartSpec idx -> do
     H.modify_ \state -> 
       state { displayedCharts = cycleChartSpec idx state.displayedCharts }
-
-updateHistory :: Int -> Maybe PromData -> History -> History
-updateHistory _ Nothing h = h
-updateHistory histlen (Just promdata) h =
-  h { allKeys = unionKeys
-    , timeseriesData = map (List.take histlen) wholeData
-    }
-  where
-    recentKeys = Map.keys promdata.metrics
-    unionKeys = h.allKeys `Set.union` recentKeys
-
-    newData = Map.difference promdata.metrics h.timeseriesData
-    agedData = Map.difference h.timeseriesData promdata.metrics
-    updatedData = Map.intersectionWith append h.timeseriesData promdata.metrics
-
-    wholeData = Map.unions
-      [ updatedData
-      , map (List.singleton <<< Just) newData
-      , map (flip List.snoc Nothing) agedData
-      ]
-
-    append xs x = List.snoc xs (Just x)
-
-    
 
 removeChartSpec :: Int -> List ChartSpec -> List ChartSpec
 removeChartSpec idx1 = List.filter different
