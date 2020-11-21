@@ -6,6 +6,8 @@ You can edit this file as you like.
 , dependencies =
   [ "aff-promise"
   , "affjax"
+  , "arraybuffer"
+  , "arraybuffer-types"
   , "console"
   , "effect"
   , "generics-rep"

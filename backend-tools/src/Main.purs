@@ -9,6 +9,7 @@ import Halogen.VDom.Driver (runUI)
 
 import Data.List (List(..))
 import Data.Maybe (Maybe(..))
+import Data.Map as Map
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Effect.Aff (Milliseconds(..))
@@ -18,6 +19,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Monitor (render, handleAction, State, Action(..))
 import History (emptyHistory)
+import HistoryPacked as PH
 
 foreign import tabUrl :: (String -> Effect Unit) -> Effect Unit
 
@@ -53,6 +55,8 @@ initialState urlRef _ =
   , pollingPeriod : Milliseconds 1000.0
   , metricsRequest : defaultMakeRequest
   , history : emptyHistory
+  , packedHistory : PH.emptyHistory
+  , historyData : Map.empty
   }
   where
     defaultMakeRequest =  do

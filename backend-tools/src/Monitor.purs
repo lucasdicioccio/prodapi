@@ -8,6 +8,8 @@ import Control.Monad.Rec.Class (forever)
 import Data.Array as Array
 import Data.Either (Either, hush)
 import Data.Maybe (Maybe(..), maybe, fromMaybe)
+import Data.Map as Map
+import Data.Map (Map)
 import Data.List (List(..))
 import Data.List as List
 import Effect (Effect)
@@ -33,6 +35,7 @@ import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries)
 
 import Parsing.Prometheus (promDoc, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
 import History (History, emptyHistory, lookupHistory, hdToList, updateHistory, historyKeys)
+import HistoryPacked as PH
 
 showDisplayMode :: ChartDisplayMode -> String
 showDisplayMode = case _ of
@@ -48,6 +51,8 @@ type State =
   , pollingPeriod :: Milliseconds
   , metricsRequest :: Effect (AX.Request String)
   , history :: History
+  , packedHistory :: PH.History
+  , historyData :: Map PH.HistoryKey PH.HistoryData
   }
 
 data Action
@@ -81,6 +86,8 @@ initialState _ =
   , pollingPeriod : Milliseconds 1000.0
   , metricsRequest : defaultMakeRequest
   , history : emptyHistory
+  , packedHistory : PH.emptyHistory
+  , historyData : Map.empty
   }
   where
     defaultMakeRequest =
@@ -107,9 +114,10 @@ renderZoomedCharts st =
   where
     renderChart (TimeSeries idx k n lbls) =
       let key  = Tuple n lbls
-          timeseries = lookupHistory key st.history
-            # map (hdToList st.history)
+          timeseries = Map.lookup key st.historyData
+            # map (List.fromFoldable)
             # fromMaybe Nil
+            # map Just
       in
       HH.div_
         [ HH.h4_ [ HH.text n , HH.text " ", HH.em_ [ HH.text $ showDisplayMode k ] ]
@@ -141,15 +149,15 @@ renderSparkTable
 renderSparkTable st =
       HH.table_
         $ map (\key -> renderPromLine key)
-        $ Array.take 10
-        $ historyKeys st.history
+        $ PH.historyKeys st.packedHistory
   where
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
-          timeseries = lookupHistory key st.history
-            # map (hdToList st.history)
+          timeseries = Map.lookup key st.historyData
+            # map (List.fromFoldable)
             # fromMaybe Nil
+            # map Just
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]
              , HH.td_ [ HH.text n ]
@@ -248,11 +256,12 @@ handleAction = case _ of
   MakeMetricsRequest -> do
     response <- getMetrics
     let prom = hush response >>= parseBody
+    state <- H.get
+    ph <- liftEffect $ PH.updateHistory' (map PH.fromPromDoc prom) state.packedHistory
+    am <- liftEffect $ PH.toArrayMap ph
     H.modify_ \st -> st { metricsResult = map _.body (hush response)
-                        , history = updateHistory
-                              (st.nsamples + st.nextrasamples)
-                              prom
-                              st.history
+                        , packedHistory = ph
+                        , historyData = am
                         }
 
   ZoomMetric n lbls -> do
