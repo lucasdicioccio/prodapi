@@ -15,7 +15,6 @@ import Effect.Exception (error)
 import Effect.Aff (Milliseconds(..))
 import Effect.Aff as Aff
 import Effect.Aff.Class (class MonadAff)
-import Effect.Ref as Ref
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -81,11 +80,10 @@ data Action
 
 component
   :: forall query input output m. MonadAff m
-  => Ref.Ref String
-  -> H.Component HH.HTML query input output m
-component url =
+  => H.Component HH.HTML query input output m
+component =
   H.mkComponent
-    { initialState: initialState url
+    { initialState: initialState
     , render
     , eval: H.mkEval $ H.defaultEval
         { handleAction = handleAction
@@ -93,8 +91,8 @@ component url =
         }
     }
 
-initialState :: forall i. Ref.Ref String -> i -> State
-initialState urlRef _ =
+initialState :: forall i. i -> State
+initialState _ =
   { metricsResult: Nothing
   , nsamples: 100
   , nextrasamples: 30
@@ -105,10 +103,9 @@ initialState urlRef _ =
   , metricsRequest : defaultMakeRequest
   }
   where
-    defaultMakeRequest =  do
-      baseUrl <- liftEffect $ Ref.read urlRef
+    defaultMakeRequest =
       pure AX.defaultRequest
-              { url = baseUrl <> "/metrics"
+              { url = "/metrics"
               , responseFormat = AXRF.string 
               , timeout = Just $ Milliseconds 250.0 
               }
@@ -359,8 +356,8 @@ cycleChartSpec idx1 xs = map cycleOne xs
 timer :: forall m. MonadAff m => Milliseconds -> EventSource m Action
 timer ms = EventSource.affEventSource \emitter -> do
   fiber <- Aff.forkAff $ forever do
-    Aff.delay ms
     EventSource.emit emitter MakeMetricsRequest
+    Aff.delay ms
   pure $ EventSource.Finalizer do
     Aff.killFiber (error "Event source finalized") fiber
 
