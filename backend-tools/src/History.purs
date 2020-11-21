@@ -7,8 +7,9 @@ module History where
 import Prelude
 import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..))
-import Data.List (List)
-import Data.List as List
+import Data.List.Lazy (List)
+import Data.List.Lazy as List
+import Data.Unfoldable (class Unfoldable)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Set (Set)
@@ -23,8 +24,8 @@ type PromData =
 
 fromPromDoc :: PromDoc -> PromData
 fromPromDoc metrics =
-  { metrics: Map.fromFoldable $ List.catMaybes $ map toMetric metrics
-  , helps: Map.fromFoldable $ List.catMaybes $ map toHelp metrics
+  { metrics: Map.fromFoldable $ List.catMaybes $ map toMetric $ List.fromFoldable metrics
+  , helps: Map.fromFoldable $ List.catMaybes $ map toHelp $ List.fromFoldable metrics
   }
   where
     toMetric (MetricLine n lbls val _) = let key = Tuple n lbls in Just $ Tuple key val
@@ -43,8 +44,8 @@ type History =
 emptyHistory :: History
 emptyHistory = { allKeys: Set.empty , timeseriesData: Map.empty }
 
-hdToList :: HistoryData -> List (Maybe Number)
-hdToList = List.reverse
+hdToList :: forall f. Unfoldable f => HistoryData -> f (Maybe Number)
+hdToList = List.toUnfoldable
 
 lookupHistory :: HistoryKey -> History -> Maybe HistoryData
 lookupHistory key h = Map.lookup key h.timeseriesData
@@ -70,7 +71,7 @@ updateHistory' histlen (Just promdata) h =
     wholeData = Map.unions
       [ updatedData
       , map (List.singleton <<< Just) newData
-      , map (flip List.snoc Nothing) agedData
+      , map (List.cons Nothing) agedData
       ]
 
-    append xs x = List.snoc xs (Just x)
+    append xs x = List.cons (Just x) xs
