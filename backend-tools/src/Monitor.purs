@@ -5,6 +5,7 @@ import Prelude
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Control.Monad.Rec.Class (forever)
+import Data.Array as Array
 import Data.Either (Either, hush)
 import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.List (List(..))
@@ -107,7 +108,7 @@ renderZoomedCharts st =
     renderChart (TimeSeries idx k n lbls) =
       let key  = Tuple n lbls
           timeseries = lookupHistory key st.history
-            # map hdToList
+            # map (hdToList st.history)
             # fromMaybe Nil
       in
       HH.div_
@@ -140,13 +141,14 @@ renderSparkTable
 renderSparkTable st =
       HH.table_
         $ map (\key -> renderPromLine key)
+        $ Array.take 10
         $ historyKeys st.history
   where
     renderPromLine key =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
           timeseries = lookupHistory key st.history
-            # map hdToList
+            # map (hdToList st.history)
             # fromMaybe Nil
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]
