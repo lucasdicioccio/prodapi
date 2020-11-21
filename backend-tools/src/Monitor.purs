@@ -23,7 +23,7 @@ import Halogen.Query.EventSource (EventSource)
 import Halogen.Query.EventSource as EventSource
 import Text.Parsing.Parser (runParser)
 
-import Data.Foldable (fold, maximum)
+import Data.Foldable (maximum)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..))
@@ -61,12 +61,21 @@ type State =
   { metricsResult :: Maybe String
   , nsamples :: Int
   , nextrasamples :: Int
-  , metricsHistory :: List (Maybe PromData)
   , displayedCharts :: List ChartSpec
   , polling :: Maybe H.SubscriptionId
   , pollingPeriod :: Milliseconds
   , metricsRequest :: Effect (AX.Request String)
+  , cache :: Cache
+  , metricsHistory :: List (Maybe PromData)
   }
+
+type Cache =
+  { allKeys :: Set (Tuple MetricName Labels)
+  , timeseriesData :: Map (Tuple MetricName Labels) (List (Maybe Number))
+  }
+
+emptyCache :: Cache
+emptyCache = { allKeys: Set.empty , timeseriesData: Map.empty }
 
 data Action
   = MakeMetricsRequest
@@ -94,11 +103,12 @@ initialState _ =
   { metricsResult: Nothing
   , nsamples: 100
   , nextrasamples: 30
-  , metricsHistory: Nil
   , displayedCharts: Nil
   , polling : Nothing
   , pollingPeriod : Milliseconds 1000.0
   , metricsRequest : defaultMakeRequest
+  , cache : emptyCache
+  , metricsHistory: Nil
   }
   where
     defaultMakeRequest =
@@ -111,41 +121,23 @@ initialState _ =
 render :: forall m. State -> H.ComponentHTML Action () m
 render st =
   HH.div_
-    [ renderGetMetrics st
-    , renderPromHistory
-        st.metricsHistory
-        st.displayedCharts
+    [ renderButtons st
+    , renderZoomedCharts st
+    , renderSparkTable st
     ]
 
-renderPromHistory
-  :: forall m
-  .  List (Maybe PromData)
-  -> List ChartSpec
-  -> H.ComponentHTML Action () m
-renderPromHistory history chartspecs =
-    HH.div_
-      [ renderZoomedCharts
-      , renderPromTable
-      ]
+renderZoomedCharts :: forall m. State -> H.ComponentHTML Action () m
+renderZoomedCharts st =
+  HH.section_
+    $ map (\spec -> renderChart spec)
+    $ List.toUnfoldable
+    $ st.displayedCharts
   where
-    allKeys :: Set (Tuple MetricName Labels)
-    allKeys = fold (map (Map.keys <<< _.metrics) $ List.catMaybes history)
-
-    renderZoomedCharts =
-      HH.ul_
-        $ map (\spec -> renderChart spec)
-        $ List.toUnfoldable
-        $ chartspecs
-
-    renderPromTable =
-      HH.table_
-        $ map (\key -> renderPromLine key)
-        $ Set.toUnfoldable
-        $ allKeys
-
     renderChart (TimeSeries idx k n lbls) =
       let key  = Tuple n lbls
-          timeseries = map join $ map (map (Map.lookup key <<< _.metrics)) history
+          timeseries = Map.lookup key st.cache.timeseriesData
+            # fromMaybe Nil
+            # List.reverse
       in
       HH.div_
         [ HH.h4_ [ HH.text n , HH.text " ", HH.em_ [ HH.text $ showDisplayMode k ] ]
@@ -156,27 +148,6 @@ renderPromHistory history chartspecs =
         , renderUnZoomButton idx
         , renderCycleChartSpec idx
         ]
-
-    renderPromLine key =
-      let n    = Tuple.fst key
-          lbls = Tuple.snd key
-          timeseries = map join $ map (map (Map.lookup key <<< _.metrics)) history
-      in
-      HH.tr_ [ HH.td_ [ renderZoomButton n lbls
-                      ]
-             , HH.td_ [ HH.text n ]
-             , HH.td_ [ renderLabels lbls ]
-             , HH.td_ [ renderSparkline timeseries ]
-             , HH.td_ [ renderValues $ List.take 1 timeseries ]
-             ]
-
-    renderZoomButton n lbls =
-      HH.button
-        [ HP.type_ HP.ButtonSubmit
-        , HE.onClick \_ -> Just (ZoomMetric n lbls)
-        ]
-        [ HH.text "+" ]
-
     renderUnZoomButton idx =
       HH.button
         [ HP.type_ HP.ButtonSubmit
@@ -190,6 +161,37 @@ renderPromHistory history chartspecs =
         , HE.onClick \_ -> Just (CycleChartSpec idx)
         ]
         [ HH.text "~" ]
+
+renderSparkTable
+  :: forall m
+  .  State
+  -> H.ComponentHTML Action () m
+renderSparkTable st =
+      HH.table_
+        $ map (\key -> renderPromLine key)
+        $ Set.toUnfoldable
+        $ st.cache.allKeys
+  where
+    renderPromLine key =
+      let n    = Tuple.fst key
+          lbls = Tuple.snd key
+          timeseries = Map.lookup key st.cache.timeseriesData
+            # fromMaybe Nil
+            # List.reverse
+      in
+      HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]
+             , HH.td_ [ HH.text n ]
+             , HH.td_ [ renderLabels lbls ]
+             , HH.td_ [ renderSparkline timeseries ]
+             , HH.td_ [ renderValues $ List.take 1 timeseries ]
+             ]
+
+    renderZoomButton n lbls =
+      HH.button
+        [ HP.type_ HP.ButtonSubmit
+        , HE.onClick \_ -> Just (ZoomMetric n lbls)
+        ]
+        [ HH.text "+" ]
 
     renderValues xs =
       HH.div_
@@ -215,8 +217,8 @@ renderValue :: forall m. MetricValue -> H.ComponentHTML Action () m
 renderValue val =
   HH.strong_ [ HH.text $ show val ]
 
-renderGetMetrics :: forall m. State -> H.ComponentHTML Action () m
-renderGetMetrics st =
+renderButtons :: forall m. State -> H.ComponentHTML Action () m
+renderButtons st =
     case st.polling of
       Nothing -> unpause
       Just _ -> HH.div_ [ pause , hasten , slowdown ]
@@ -276,8 +278,10 @@ handleAction = case _ of
     let prom = hush response >>= parseBody
     let promlist = map fromPromDoc prom
     H.modify_ \st -> st { metricsResult = map _.body (hush response)
-                        , metricsHistory = List.take (st.nsamples + st.nextrasamples)
-                            $ List.singleton promlist <> st.metricsHistory
+                        , cache = updateCache
+                              (st.nsamples + st.nextrasamples)
+                              promlist
+                              st.cache
                         }
 
   ZoomMetric n lbls -> do
@@ -292,6 +296,30 @@ handleAction = case _ of
   CycleChartSpec idx -> do
     H.modify_ \state -> 
       state { displayedCharts = cycleChartSpec idx state.displayedCharts }
+
+updateCache :: Int -> Maybe PromData -> Cache -> Cache
+updateCache _ Nothing c = c
+updateCache histlen (Just promdata) c =
+  c { allKeys = unionKeys
+    , timeseriesData = map (List.take histlen) wholeData
+    }
+  where
+    recentKeys = Map.keys promdata.metrics
+    unionKeys = c.allKeys `Set.union` recentKeys
+
+    newData = Map.difference promdata.metrics c.timeseriesData
+    agedData = Map.difference c.timeseriesData promdata.metrics
+    updatedData = Map.intersectionWith append c.timeseriesData promdata.metrics
+
+    wholeData = Map.unions
+      [ updatedData
+      , map (List.singleton <<< Just) newData
+      , map (flip List.snoc Nothing) agedData
+      ]
+
+    append xs x = List.snoc xs (Just x)
+
+    
 
 removeChartSpec :: Int -> List ChartSpec -> List ChartSpec
 removeChartSpec idx1 = List.filter different
