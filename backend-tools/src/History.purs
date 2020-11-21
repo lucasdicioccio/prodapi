@@ -6,7 +6,7 @@ module History where
 
 import Prelude
 import Data.Tuple (Tuple(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.List as List
 import Data.Array as Array
 import Data.Unfoldable (class Unfoldable)
@@ -39,10 +39,14 @@ type HistoryData = Array (Maybe Number)
 type History =
   { knownKeys :: Set HistoryKey
   , timeseriesData :: Map HistoryKey HistoryData
+  , ptr :: Int
   }
 
+historyLen :: Int
+historyLen = 100
+
 emptyHistory :: History
-emptyHistory = { knownKeys: Set.empty , timeseriesData: Map.empty }
+emptyHistory = { knownKeys: Set.empty , timeseriesData: Map.empty , ptr: 0}
 
 historyKeys :: forall f. Unfoldable f => History -> f HistoryKey
 historyKeys h = Set.toUnfoldable $ h.knownKeys
@@ -61,7 +65,8 @@ updateHistory' :: Int -> Maybe PromData -> History -> History
 updateHistory' _ Nothing h = h
 updateHistory' histlen (Just promdata) h =
   h { knownKeys = allKeys
-    , timeseriesData = map (Array.take histlen) wholeData
+    , timeseriesData = wholeData
+    , ptr = (h.ptr + 1) `mod` historyLen
     }
   where
     recentKeys = Map.keys promdata.metrics
@@ -69,12 +74,19 @@ updateHistory' histlen (Just promdata) h =
 
     newData = Map.difference promdata.metrics h.timeseriesData
     agedData = Map.difference h.timeseriesData promdata.metrics
-    updatedData = Map.intersectionWith append h.timeseriesData promdata.metrics
+    updatedData = Map.intersectionWith insert h.timeseriesData promdata.metrics
 
     wholeData = Map.unions
       [ updatedData
-      , map (Array.singleton <<< Just) newData
-      , map (Array.cons Nothing) agedData
+      , map (mutate newBuf <<< Just) newData
+      , map (flip mutate Nothing) agedData
       ]
 
-    append xs x = Array.cons (Just x) xs
+    newBuf :: Array (Maybe Number)
+    newBuf = Array.replicate historyLen Nothing
+
+    insert :: Array (Maybe Number) -> Number -> Array (Maybe Number)
+    insert xs n = mutate xs (Just n)
+
+    mutate :: Array (Maybe Number) -> Maybe Number -> Array (Maybe Number)
+    mutate xs x = fromMaybe [] $ Array.updateAt h.ptr x xs
