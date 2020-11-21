@@ -32,7 +32,7 @@ import Charting.SparkLine (renderSparkline)
 import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries)
 
 import Parsing.Prometheus (promDoc, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
-import History (History, emptyHistory, lookupHistory, updateHistory)
+import History (History, emptyHistory, lookupHistory, hdToList, updateHistory)
 
 showDisplayMode :: ChartDisplayMode -> String
 showDisplayMode = case _ of
@@ -108,6 +108,7 @@ renderZoomedCharts st =
     renderChart (TimeSeries idx k n lbls) =
       let key  = Tuple n lbls
           timeseries = lookupHistory key st.history
+            # map hdToList
             # fromMaybe Nil
       in
       HH.div_
@@ -147,6 +148,7 @@ renderSparkTable st =
       let n    = Tuple.fst key
           lbls = Tuple.snd key
           timeseries = lookupHistory key st.history
+            # map hdToList
             # fromMaybe Nil
       in
       HH.tr_ [ HH.td_ [ renderZoomButton n lbls ]

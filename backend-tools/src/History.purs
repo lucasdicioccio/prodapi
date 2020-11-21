@@ -1,18 +1,20 @@
 
+-- | Performance improvements:
+-- - fuse PromData away
+-- - use Array as backing
 module History where
 
 import Prelude
 import Data.Tuple (Tuple(..))
-import Data.Tuple as Tuple
-import Data.Maybe (Maybe(..), maybe, fromMaybe)
-import Data.List (List(..))
+import Data.Maybe (Maybe(..))
+import Data.List (List)
 import Data.List as List
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Set (Set)
 import Data.Set as Set
 
-import Parsing.Prometheus (promDoc, PromDoc, Line(..), Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
+import Parsing.Prometheus (PromDoc, Line(..), Labels, MetricName, MetricValue)
 
 type PromData =
   { metrics :: Map (Tuple MetricName Labels) MetricValue
@@ -31,17 +33,21 @@ fromPromDoc metrics =
     toHelp _                           = Nothing
 
 type HistoryKey = Tuple MetricName Labels
+type HistoryData = List (Maybe Number)
 
 type History =
   { allKeys :: Set HistoryKey
-  , timeseriesData :: Map HistoryKey (List (Maybe Number))
+  , timeseriesData :: Map HistoryKey HistoryData
   }
 
 emptyHistory :: History
 emptyHistory = { allKeys: Set.empty , timeseriesData: Map.empty }
 
-lookupHistory :: HistoryKey -> History -> Maybe (List (Maybe Number))
-lookupHistory key h = map List.reverse $ Map.lookup key h.timeseriesData
+hdToList :: HistoryData -> List (Maybe Number)
+hdToList = List.reverse
+
+lookupHistory :: HistoryKey -> History -> Maybe HistoryData
+lookupHistory key h = Map.lookup key h.timeseriesData
 
 updateHistory :: Int -> Maybe PromDoc -> History -> History
 updateHistory n doc =
