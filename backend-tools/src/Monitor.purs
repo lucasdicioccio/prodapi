@@ -5,10 +5,11 @@ import Prelude
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Control.Monad.Rec.Class (forever)
-import Data.Either (hush)
+import Data.Either (Either, hush)
 import Data.Maybe (Maybe(..), maybe, fromMaybe)
 import Data.List (List(..))
 import Data.List as List
+import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
 import Effect.Aff (Milliseconds(..))
@@ -66,6 +67,7 @@ type State =
   , displayedCharts :: List ChartSpec
   , polling :: Maybe H.SubscriptionId
   , pollingPeriod :: Milliseconds
+  , metricsRequest :: Effect (AX.Request String)
   }
 
 data Action
@@ -83,16 +85,16 @@ component
   -> H.Component HH.HTML query input output m
 component url =
   H.mkComponent
-    { initialState
+    { initialState: initialState url
     , render
     , eval: H.mkEval $ H.defaultEval
-        { handleAction = handleAction url
+        { handleAction = handleAction
         , initialize = Just $ StartPolling $ Milliseconds 1000.0
         }
     }
 
-initialState :: forall i. i -> State
-initialState _ =
+initialState :: forall i. Ref.Ref String -> i -> State
+initialState urlRef _ =
   { metricsResult: Nothing
   , nsamples: 100
   , nextrasamples: 30
@@ -100,7 +102,16 @@ initialState _ =
   , displayedCharts: Nil
   , polling : Nothing
   , pollingPeriod : Milliseconds 1000.0
+  , metricsRequest : defaultMakeRequest
   }
+  where
+    defaultMakeRequest =  do
+      baseUrl <- liftEffect $ Ref.read urlRef
+      pure AX.defaultRequest
+              { url = baseUrl <> "/metrics"
+              , responseFormat = AXRF.string 
+              , timeout = Just $ Milliseconds 250.0 
+              }
 
 render :: forall m. State -> H.ComponentHTML Action () m
 render st =
@@ -265,11 +276,18 @@ renderGetMetrics st =
       [ HH.text "tame" ]
 
 
+getMetrics :: forall action input output m. MonadAff m
+ => H.HalogenM State action input output m (Either AX.Error (AX.Response String))
+getMetrics = do
+    state <- H.get
+    req <- liftEffect $ state.metricsRequest
+    H.liftAff $ AX.request req
+
+
 handleAction :: forall output m. MonadAff m
- => Ref.Ref String
- -> Action
+ => Action
  -> H.HalogenM State Action () output m Unit
-handleAction urlRef = case _ of
+handleAction = case _ of
   StartPolling ms -> do
     state <- H.get
     maybe (pure unit) (H.unsubscribe) state.polling
@@ -282,19 +300,13 @@ handleAction urlRef = case _ of
     H.modify_ _ { polling = Nothing }
 
   MakeMetricsRequest -> do
-    baseUrl <- liftEffect $ Ref.read urlRef
-    let req = AX.defaultRequest
-                { url = baseUrl <> "/metrics"
-                , responseFormat = AXRF.string 
-                , timeout = Just $ Milliseconds 250.0 
-                }
-    response <- H.liftAff $ AX.request req
+    response <- getMetrics
     let prom = hush response >>= parseBody
     let promlist = map fromPromDoc prom
-    H.modify_ \state -> state { metricsResult = map _.body (hush response)
-                              , metricsHistory = List.take (state.nsamples + state.nextrasamples)
-                                  $ List.singleton promlist <> state.metricsHistory
-                              }
+    H.modify_ \st -> st { metricsResult = map _.body (hush response)
+                        , metricsHistory = List.take (st.nsamples + st.nextrasamples)
+                            $ List.singleton promlist <> st.metricsHistory
+                        }
 
   MergeMetric n lbls -> do
     H.modify_ \state -> 
