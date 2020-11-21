@@ -99,17 +99,14 @@ renderPoint pref idx v =
 
 renderVerticalBar :: forall t1 t2. SegmentPref -> Int -> Tuple Number Number -> HH.HTML t1 t2
 renderVerticalBar pref idx (Tuple v1 v2) =
-  SE.g
-    []
-    [ SE.line
-        [ SA.x1 $ pref.positionX $ idx
-        , SA.x2 $ pref.positionX $ idx
-        , SA.y1 $ pref.positionY $ pref.normalize v1
-        , SA.y2 $ pref.positionY $ pref.normalize v2
-        , SA.stroke (Just $ pref.color idx)
-        , SA.strokeWidth $ pref.width $ idx
-        ]
-     ]
+  SE.line
+    [ SA.x1 $ pref.positionX $ idx
+    , SA.x2 $ pref.positionX $ idx
+    , SA.y1 $ pref.positionY $ pref.normalize v1
+    , SA.y2 $ pref.positionY $ pref.normalize v2
+    , SA.stroke (Just $ pref.color idx)
+    , SA.strokeWidth $ pref.width $ idx
+    ]
 
 
 renderChartTimeseries :: forall t1 t2. List (Maybe Number) -> HH.HTML t1 t2
@@ -145,9 +142,9 @@ renderMultiChartTimeseries xxs =
      normalize v = case (Tuple vmin vmax) of
         Tuple (Just v0) (Just v1) ->
           if v1 == v0
-          then 5.0
+          then 0.5
           else (v - v0) / (v1 - v0)
-        _ -> 5.0
+        _ -> 0.5
      positionX idx = toNumber $ 610 - 6*idx
      positionY y = 250.0 * (1.0 - y)
 
@@ -206,12 +203,56 @@ renderMultiChartTimeseries xxs =
         $ List.catMaybes
         $ mapWithIndex (renderMaybeOutage tsIdx)
         $ mreals
+
+     oneTimeseries tsIdx xs =
+        SE.g
+         []
+         $ (segments <> points <> outagebars) tsIdx xs
+
+     timeseries =
+       mapWithIndex oneTimeseries xxs
+
+     xAxis yval=
+        SE.line
+        [ SA.x1 0.0
+        , SA.x2 620.0
+        , SA.y1 yval
+        , SA.y2 yval
+        , SA.stroke (Just $ palette 0)
+        , SA.strokeWidth 3.0
+        ]
+
+     yAxis xval =
+        SE.line
+        [ SA.x1 xval
+        , SA.x2 xval
+        , SA.y1 0.0
+        , SA.y2 250.0
+        , SA.stroke (Just $ palette 0)
+        , SA.strokeWidth 3.0
+        ]
+
+     yLabelMax =
+        SE.text
+        [ SA.x 3.0
+        , SA.y 15.0
+        ]
+        [ HH.text $ show vmax
+        ]
+       
+     yLabelMin =
+        SE.text
+        [ SA.x 3.0
+        , SA.y 235.0
+        ]
+        [ HH.text $ show vmin
+        ]
+       
  in
  SE.svg [ SA.width 620.0
         , SA.height 250.0
         , SA.viewBox 0.0 0.0 620.0 250.0
         ]
-        ( List.toUnfoldable
-          $ List.concat
-          $ mapWithIndex (segments <> points <> outagebars) xxs
-        )
+        [ SE.g [] $ List.toUnfoldable timeseries
+        , SE.g [] [ xAxis 250.0, yAxis 0.0, yLabelMax, yLabelMin ]
+        ]
