@@ -5,6 +5,7 @@ import Prelude
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
 import Control.Monad.Rec.Class (forever)
+import Data.Traversable (sequence)
 import Data.Array as Array
 import Data.Either (Either, hush)
 import Data.Maybe (Maybe(..), maybe, fromMaybe)
@@ -26,6 +27,8 @@ import Halogen.Query.EventSource (EventSource)
 import Halogen.Query.EventSource as EventSource
 import Text.Parsing.Parser (runParser)
 
+import Data.String (Pattern(..))
+import Data.String as String
 import Data.Foldable (maximum)
 import Data.Tuple (Tuple(..))
 import Data.Tuple as Tuple
@@ -33,7 +36,7 @@ import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDis
 import Charting.SparkLine (renderSparkline)
 import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries)
 
-import Parsing.Prometheus (promDoc, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue)
+import Parsing.Prometheus (promLine, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue, fromArray)
 import History (History, emptyHistory, lookupHistory, hdToList, updateHistory, historyKeys)
 import HistoryPacked as PH
 
@@ -301,6 +304,15 @@ timer ms = EventSource.affEventSource \emitter -> do
   pure $ EventSource.Finalizer do
     Aff.killFiber (error "Event source finalized") fiber
 
+-- | We parse each line independently because the 
+-- generated code for the parser is slow.
 parseBody :: forall t. { body :: String | t } -> Maybe PromDoc
-parseBody = hush <<< (flip runParser) promDoc <<< _.body
-
+parseBody obj =
+  obj.body
+  # String.split (Pattern "\n")
+  # map parseLine
+  # sequence
+  # hush
+  # map fromArray
+  where
+    parseLine = (flip runParser) promLine

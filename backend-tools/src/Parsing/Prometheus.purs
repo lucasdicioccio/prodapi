@@ -1,6 +1,8 @@
 
 module Parsing.Prometheus
  ( promDoc
+ , promLine
+ , fromArray
  , PromDoc
  , Line(..)
  , MetricName
@@ -24,6 +26,7 @@ import Data.Array (many)
 import Data.String.CodeUnits (fromCharArray, toCharArray)
 import Data.Tuple (Tuple(..), fst, snd)
 import Data.List (List)
+import Data.List as List
 import Data.Maybe (Maybe(..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
@@ -60,6 +63,9 @@ instance showLine :: Show Line where
   show = genericShow
 
 type PromDoc = List Line
+
+fromArray :: Array Line -> PromDoc
+fromArray = List.fromFoldable
 
 promDoc :: Parser String PromDoc
 promDoc = promLine `sepBy` char '\n'
