@@ -13,6 +13,7 @@ import Data.Map as Map
 import Data.Map (Map)
 import Data.List (List(..))
 import Data.List as List
+import Data.String.CodeUnits (charAt)
 import Effect (Effect)
 import Effect.Class (liftEffect)
 import Effect.Exception (error)
@@ -36,7 +37,7 @@ import Charting.Charts (ChartSpec(..), specIndex, ChartDisplayMode(..), cycleDis
 import Charting.SparkLine (renderSparkline)
 import Charting.TimeSeries (renderChartTimeseries, renderChartDiffTimeseries)
 
-import Parsing.Prometheus (promLine, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue, fromArray)
+import Parsing.Prometheus (metric, PromDoc, Labels, LabelPair, pairName, pairValue, MetricName, MetricValue, fromArray)
 import History (History, emptyHistory, lookupHistory, hdToList, updateHistory, historyKeys)
 import HistoryPacked as PH
 
@@ -310,9 +311,13 @@ parseBody :: forall t. { body :: String | t } -> Maybe PromDoc
 parseBody obj =
   obj.body
   # String.split (Pattern "\n")
+  # Array.filter interesting
   # map parseLine
   # sequence
   # hush
   # map fromArray
   where
-    parseLine = (flip runParser) promLine
+    parseLine = (flip runParser) metric
+    interesting str =
+      let c = charAt 0 str
+      in (c /= Just '#') && (c /= Nothing)

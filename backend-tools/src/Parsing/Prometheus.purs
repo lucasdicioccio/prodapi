@@ -2,6 +2,8 @@
 module Parsing.Prometheus
  ( promDoc
  , promLine
+ , metric
+ , commentedLine
  , fromArray
  , PromDoc
  , Line(..)
@@ -17,15 +19,15 @@ module Parsing.Prometheus
  , MetricTimestamp
  ) where
 
-import Prelude (class Show, Unit, bind, mempty, negate, pure, ($), (*>), (<$>), (<*), (<>))
+import Prelude (class Show, Unit, bind, mempty, negate, pure, ($), (*>), (<$>), (<*), (<>), (<<<))
 
 import Global (nan, infinity)
 import Control.Alt ((<|>))
 import Data.Float.Parse (parseFloat)
-import Data.Array (many)
 import Data.String.CodeUnits (fromCharArray, toCharArray)
 import Data.Tuple (Tuple(..), fst, snd)
-import Data.List (List)
+import Data.Array as Array
+import Data.List (List, manyRec)
 import Data.List as List
 import Data.Maybe (Maybe(..))
 import Data.Generic.Rep (class Generic)
@@ -73,10 +75,14 @@ promDoc = promLine `sepBy` char '\n'
 promLine :: Parser String Line
 promLine =
       metric
-  <|> try helpLine
+  <|> commentedLine
+  <|> (OtherLine <$> restOfLine)
+
+commentedLine :: Parser String Line
+commentedLine =
+  try helpLine
   <|> try typeLine
   <|> try comment
-  <|> (OtherLine <$> restOfLine)
 
 metric :: Parser String Line
 metric = do
@@ -107,17 +113,20 @@ labelPair = do
   _ <- char '"'
   pure $ Tuple n v
 
+fromCharList :: List Char -> String
+fromCharList = fromCharArray <<< Array.fromFoldable
+
 restOfLine :: Parser String String
-restOfLine = fromCharArray <$> many (noneOf ['\n'])
+restOfLine = fromCharList <$> manyRec (noneOf ['\n'])
 
 metricName :: Parser String MetricName
-metricName = fromCharArray <$> promBasicName
+metricName = fromCharList <$> promBasicName
 
 labelName :: Parser String LabelName
-labelName = fromCharArray <$> promBasicName
+labelName = fromCharList <$> promBasicName
 
 labelValue :: Parser String LabelValue
-labelValue = fromCharArray <$> promQuotedString
+labelValue = fromCharList <$> promQuotedString
 
 metricValue :: Parser String MetricValue
 metricValue = 
@@ -132,7 +141,7 @@ allowedFloatChars = toCharArray "01234567890-e."
 
 boundedFloat :: Parser String Number
 boundedFloat = do
-  val <- fromCharArray <$> many (oneOf allowedFloatChars)
+  val <- fromCharList <$> manyRec (oneOf allowedFloatChars)
   case parseFloat val of
     Just num -> pure num
     _        -> fail $ "could not parse float from val: " <> val
@@ -141,18 +150,18 @@ allowedTimestampChars :: Array Char
 allowedTimestampChars = toCharArray "1234567890-"
 
 metricTimestamp :: Parser String MetricTimestamp
-metricTimestamp = fromCharArray <$> many (oneOf allowedTimestampChars)
+metricTimestamp = fromCharList <$> manyRec (oneOf allowedTimestampChars)
 
 allowedNameChars :: Array Char
 allowedNameChars = toCharArray "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm_1234567890"
 
-promBasicName :: Parser String (Array Char)
+promBasicName :: Parser String (List Char)
 promBasicName =
-  many (oneOf allowedNameChars)
+  manyRec (oneOf allowedNameChars)
 
-promQuotedString :: Parser String (Array Char)
+promQuotedString :: Parser String (List Char)
 promQuotedString =
-  many (escapedChar <|> otherChar)
+  manyRec (escapedChar <|> otherChar)
 
 escapedChar :: Parser String Char
 escapedChar = char '\\' *> oneOf (toCharArray "\\\"\n")
