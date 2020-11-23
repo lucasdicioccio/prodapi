@@ -72,10 +72,10 @@ promDoc = promLine `sepBy` char '\n'
 
 promLine :: Parser String Line
 promLine =
-  try helpLine
+      metric
+  <|> try helpLine
   <|> try typeLine
   <|> try comment
-  <|> try metric
   <|> (OtherLine <$> restOfLine)
 
 metric :: Parser String Line
@@ -93,9 +93,10 @@ spacing = skipMany1 (char ' ')
 
 labels :: Parser String (List LabelPair)
 labels = do
-  char '{' *> lbls <* char '}'
-  where
-    lbls = labelPair `sepEndBy` string ","
+  char '{' *> labelsList <* char '}'
+
+labelsList :: Parser String (List LabelPair)
+labelsList = labelPair `sepEndBy` string ","
 
 labelPair :: Parser String LabelPair
 labelPair = do
@@ -120,34 +121,44 @@ labelValue = fromCharArray <$> promQuotedString
 
 metricValue :: Parser String MetricValue
 metricValue = 
-  try (string "+Inf" *> pure infinity)
-  <|> try (string "-Inf" *> pure (-infinity))
-  <|> try (string "NaN" *> pure nan)
-  <|> boundedFloat
+      boundedFloat
+  <|> (string "NaN" *> pure nan)
+  <|> (string "+Inf" *> pure infinity)
+  <|> (string "-Inf" *> pure (-infinity))
+
+
+allowedFloatChars :: Array Char
+allowedFloatChars = toCharArray "01234567890-e."
 
 boundedFloat :: Parser String Number
 boundedFloat = do
-  val <- fromCharArray <$> many (oneOf $ toCharArray "01234567890-e.")
+  val <- fromCharArray <$> many (oneOf allowedFloatChars)
   case parseFloat val of
     Just num -> pure num
     _        -> fail $ "could not parse float from val: " <> val
 
+allowedTimestampChars :: Array Char
+allowedTimestampChars = toCharArray "1234567890-"
+
 metricTimestamp :: Parser String MetricTimestamp
-metricTimestamp = fromCharArray <$> many (oneOf $ toCharArray "1234567890-")
+metricTimestamp = fromCharArray <$> many (oneOf allowedTimestampChars)
+
+allowedNameChars :: Array Char
+allowedNameChars = toCharArray "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm_1234567890"
 
 promBasicName :: Parser String (Array Char)
 promBasicName =
-  many (oneOf $ toCharArray "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm_1234567890")
+  many (oneOf allowedNameChars)
 
 promQuotedString :: Parser String (Array Char)
 promQuotedString =
-  many (try escapedChar <|> otherChar)
-  where
-    escapedChar :: Parser String Char
-    escapedChar = char '\\' *> oneOf (toCharArray "\\\"\n")
+  many (escapedChar <|> otherChar)
 
-    otherChar :: Parser String Char
-    otherChar = noneOf $ toCharArray "\""
+escapedChar :: Parser String Char
+escapedChar = char '\\' *> oneOf (toCharArray "\\\"\n")
+
+otherChar :: Parser String Char
+otherChar = noneOf $ toCharArray "\""
 
 
 helpLine :: Parser String Line
