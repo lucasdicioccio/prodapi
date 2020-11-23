@@ -11,9 +11,9 @@ import Data.Foldable (foldM)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (traverse)
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.List (List)
+import Data.List (List(..))
 import Data.List as List
-import Data.Unfoldable (class Unfoldable)
+import Data.Unfoldable (class Unfoldable, unfoldr)
 import Data.UInt as UInt
 import Data.Map (Map)
 import Data.Map as Map
@@ -22,8 +22,9 @@ import Data.Set as Set
 
 import Parsing.Prometheus (PromDoc, Line(..), Labels, MetricName, MetricValue)
 
-import Data.ArrayBuffer.Types (Float64Array, Uint8Array)
+import Data.ArrayBuffer.Types (ArrayView, Float64Array, Uint8Array)
 import Data.ArrayBuffer.Typed as AB
+import Partial.Unsafe (unsafePartial)
 
 type PromData =
   { metrics :: Map (Tuple MetricName Labels) MetricValue
@@ -65,12 +66,18 @@ toArrayMap h = traverse adapt h.timeseriesData
   where
     adapt :: HistoryDataInternal -> Effect HistoryData
     adapt (Tuple buf mask) =
-        List.zipWith f
-          <$> map List.fromFoldable (AB.toArray buf)
-          <*> map List.fromFoldable (AB.toArray mask)
+        unfoldQuery buf mask h.ptr List.Nil
 
-    f :: Number -> UInt.UInt -> Maybe Number
-    f v k = if UInt.fromInt 0 == k then Nothing else Just v
+    unfoldQuery buf mask i ret
+      | i < h.ptr + historyLen = do
+              k <- unsafePartial $ AB.unsafeAt mask (i `mod` historyLen)
+              if UInt.fromInt 0 == k
+              then
+                unfoldQuery buf mask (i + 1) (Cons Nothing ret)
+              else do
+                v <- unsafePartial $ AB.unsafeAt buf (i `mod` historyLen)
+                unfoldQuery buf mask (i + 1) (Cons (Just v) ret)
+      | otherwise = pure ret
 
 updateHistory' :: Maybe PromData -> History -> Effect History
 updateHistory' Nothing h = pure h
