@@ -13,6 +13,7 @@ import Data.Text (Text)
 import Prod.Prometheus (timeIt)
 import System.Random (randomRIO)
 import qualified Prometheus as Prometheus
+import Prod.Watchdog (basicWatchdog, Watchdog, WatchdogResult(..))
 
 type Api = "hello-world" :> Get '[JSON] Text
 
@@ -32,12 +33,22 @@ newCounters =
           (Prometheus.Info name help)
           Prometheus.defaultQuantiles
 
+startWatchdog :: IO (Watchdog ())
+startWatchdog = do
+  counter <- Prometheus.register
+      $ Prometheus.vector "status"
+      $ Prometheus.counter (Prometheus.Info "watchdog_hello" "continuously working")
+  basicWatchdog counter 500000 (pure $ Success ())
+
 data Runtime = Runtime
   { counters :: Counters
+  , watchdog :: Watchdog ()
   }
 
 initRuntime :: IO Runtime
-initRuntime = Runtime <$> newCounters
+initRuntime = Runtime
+  <$> newCounters
+  <*> startWatchdog
 
 serve :: Runtime -> Handler Text
 serve runtime = do

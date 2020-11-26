@@ -50,8 +50,9 @@ modules:
 - JWT claims in a Cookies
 - Servant Combinators for Cookie-Protection
 
-## background values
+## background values and watchdogs
 - ways to spawn asynchronously-updated values
+- special case of watchdogs which touch a prometheus counter on success
 
 # TODO
 
