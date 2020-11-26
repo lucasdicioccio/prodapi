@@ -14,19 +14,25 @@ import Prod.App as Prod
 import qualified Prod.UserAuth as Auth
 
 import qualified Hello
+import qualified Monitors
 
-type FullApi = Hello.Api :<|> Auth.UserAuthApi
+type FullApi = Hello.Api
+  :<|> Monitors.Api
+  :<|> Auth.UserAuthApi
 
 main :: IO ()
 main = do
   init <- initialize Prod.defaultRuntime
   authRt <- Auth.initRuntime "secret-value" "pg://"
   helloRt <- Hello.initRuntime
+  monitorsRt <- Monitors.initRuntime
   Warp.run
     8000
     $ RequestLogger.logStdoutDev
     $ appWithContext
         init
-        (Hello.serve helloRt :<|> Auth.handleUserAuth authRt)
+        (Hello.serve helloRt
+         :<|> Monitors.handle monitorsRt
+         :<|> Auth.handleUserAuth authRt)
         (Proxy @FullApi)
         (Auth.authServerContext authRt)
