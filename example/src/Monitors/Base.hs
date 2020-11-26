@@ -7,6 +7,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as ByteString
 import GHC.Generics (Generic)
 import Prod.Background
 import Data.IORef (IORef, newIORef)
@@ -14,6 +15,9 @@ import Data.IORef (IORef, newIORef)
 import System.Process.ByteString (readCreateProcessWithExitCode)
 import System.Process.ListLike (proc)
 import System.Exit (ExitCode)
+
+import Monitors.Counters (Counters(..), newCounters)
+import qualified Prometheus as Prometheus
 
 type InternetDestination = Text
 
@@ -25,15 +29,19 @@ type DeRegistration = Int
 
 data Runtime = Runtime {
     pings :: IORef [(Registration, BackgroundVal (Maybe CommandOutput))]
+  , counters :: Counters
   }
 
 initRuntime :: IO Runtime
-initRuntime = Runtime <$> newIORef []
+initRuntime = Runtime <$> newIORef [] <*> newCounters
 
 type CommandOutput = (ExitCode, ByteString, ByteString)
 
-backgroundPings :: PingTarget -> IO (BackgroundVal (Maybe CommandOutput))
-backgroundPings (PingTarget tgt) =
+backgroundPings
+  :: Counters
+  -> PingTarget
+  -> IO (BackgroundVal (Maybe CommandOutput))
+backgroundPings counters (PingTarget tgt) =
   background
     ()
     Nothing
@@ -46,5 +54,9 @@ backgroundPings (PingTarget tgt) =
           , Text.unpack tgt
           ]
     go _ =  do
-      ret <- readCreateProcessWithExitCode cmd ""
+      Prometheus.incCounter (executionStarted counters)
+      ret@(_,out,_) <- readCreateProcessWithExitCode cmd ""
+      Prometheus.incCounter (executionEnded counters)
+      let stdoutRows = length $ ByteString.lines out
+      Prometheus.addCounter (stdoutLines counters) $ fromIntegral stdoutRows
       pure (Just ret, ())

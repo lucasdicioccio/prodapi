@@ -16,7 +16,7 @@ handle rt = addPing rt :<|> removePing rt
 
 addPing :: Runtime -> PingTarget -> Handler Registration
 addPing rt tgt@(PingTarget target) = liftIO $ do
-  bkg <- backgroundPings tgt
+  bkg <- backgroundPings (counters rt) tgt
   let regname = target
   _ <- atomicModifyIORef' (pings rt) (\xs -> ((regname, bkg) : xs, ()))
   pure $ regname
