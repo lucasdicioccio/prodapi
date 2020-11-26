@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Monitors.Base where
 
+import Control.Monad (void)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -14,7 +15,7 @@ import Data.IORef (IORef, newIORef)
 
 import System.Process.ByteString (readCreateProcessWithExitCode)
 import System.Process.ListLike (proc)
-import System.Exit (ExitCode)
+import System.Exit (ExitCode(..))
 
 import Monitors.Counters (Counters(..), newCounters)
 import qualified Prometheus as Prometheus
@@ -53,10 +54,13 @@ backgroundPings counters (PingTarget tgt) =
           , "-W", "1000"
           , Text.unpack tgt
           ]
+    labelForExitCode ExitSuccess = "0"
+    labelForExitCode (ExitFailure n) = Text.pack $ show $ n
     go _ =  do
-      Prometheus.incCounter (executionStarted counters)
-      ret@(_,out,_) <- readCreateProcessWithExitCode cmd ""
-      Prometheus.incCounter (executionEnded counters)
+      Prometheus.withLabel (executionStarted counters) "ping" Prometheus.incCounter
+      ret@(code,out,_) <- readCreateProcessWithExitCode cmd ""
+      Prometheus.withLabel (executionEnded counters) ("ping", labelForExitCode code) Prometheus.incCounter
       let stdoutRows = length $ ByteString.lines out
-      Prometheus.addCounter (stdoutLines counters) $ fromIntegral stdoutRows
+      Prometheus.withLabel (stdoutLines counters) "ping" $ \cnt -> void $ do
+        Prometheus.addCounter cnt (fromIntegral stdoutRows)
       pure (Just ret, ())

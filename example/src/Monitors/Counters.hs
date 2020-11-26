@@ -1,21 +1,27 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Monitors.Counters (Counters(..), newCounters) where
 
-import qualified Prometheus as Prometheus
+import Prometheus as Prometheus
 
 data Counters = Counters {
-    executionStarted :: !Prometheus.Counter
-  , executionEnded :: !Prometheus.Counter
-  , stdoutLines :: !Prometheus.Counter
+    executionStarted :: !(Vector Label1 Counter)
+  , executionEnded :: !(Vector Label2 Counter)
+  , stdoutLines :: !(Vector Label1 Counter)
  }
 
 newCounters :: IO Counters
 newCounters =
   Counters
-    <$> counts "executions_start"
-    <*> counts "executions_end"
-    <*> counts "stdout_lines"
+    <$> counts1 "executions_start"
+    <*> counts2 "executions_end"
+    <*> counts1 "stdout_lines"
   where
-    counts k =
-      Prometheus.register $
-        Prometheus.counter (Prometheus.Info k "")
+    counts1 k =
+      Prometheus.register
+      $ Prometheus.vector "cmd"
+      $ Prometheus.counter (Prometheus.Info k "")
+
+    counts2 k =
+      Prometheus.register
+      $ Prometheus.vector ("cmd", "exit")
+      $ Prometheus.counter (Prometheus.Info k "")
