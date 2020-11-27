@@ -28,7 +28,7 @@ exampleStatus = pure "example"
 main :: IO ()
 main = do
   init <- initialize Prod.alwaysReadyRuntime
-  authRt <- Auth.initRuntime "secret-value" "pg://"
+  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example"
   helloRt <- Hello.initRuntime
   monitorsRt <- Monitors.initRuntime
   Warp.run

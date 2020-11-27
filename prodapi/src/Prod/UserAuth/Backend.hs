@@ -37,7 +37,7 @@ newuser conn = query conn q ()
   where
     q =
       [sql|
-      INSERT INTO users(id)
+      INSERT INTO identities(id)
       VALUES (DEFAULT)
       RETURNING (id)
     |]
@@ -49,7 +49,7 @@ finduser conn email = query conn q (Only email)
   where
     q =
       [sql|
-      SELECT user_id
+      SELECT identity_id
       FROM passwords
       WHERE email = ?
         AND enabled
@@ -62,7 +62,7 @@ finduidMail conn uid = query conn q (Only uid)
       [sql|
       SELECT email
       FROM passwords
-      WHERE user_id = ?
+      WHERE identity_id = ?
         AND enabled
     |]
 
@@ -82,7 +82,7 @@ newpass conn pass = execute conn q (emailV, plainV, uidV)
     uidV = uid (pass :: SetPassword)
     q =
       [sql|
-      INSERT INTO passwords(email,enabled,hashed,salt,user_id)
+      INSERT INTO passwords(email,enabled,hashed,salt,identity_id)
       SELECT ?, true, encode(digest(? || x.xsalt, 'sha256'), 'hex'), x.xsalt, ?
         FROM (SELECT md5(random()::text) AS xsalt) x
     |]
@@ -100,7 +100,7 @@ resetpass conn pass = execute conn q (plainV, uidV, emailV)
         SET hashed = encode(digest(? || x.xsalt, 'sha256'), 'hex')
           , salt = x.xsalt
         FROM (SELECT md5(random()::text) AS xsalt) x
-        WHERE (user_id = ?)
+        WHERE (identity_id = ?)
           AND (email = ?)
       |]
 
@@ -117,7 +117,7 @@ login conn attempt = toResult <$> query conn q (plainV, emailV)
     emailV = email (attempt :: LoginAttempt)
     q =
       [sql|
-      SELECT user_id
+      SELECT identity_id
            , encode(digest( ? || salt, 'sha256'), 'hex') = hashed
       FROM passwords
       WHERE email = ?
@@ -138,7 +138,7 @@ newrecovery conn recover = query conn q (Only uidV)
     uidV = uid (recover :: NewRecovery)
     q =
       [sql|
-        INSERT INTO password_lost_request(timestamp,user_id,token)
+        INSERT INTO password_lost_request(timestamp,identity_id,token)
         SELECT CURRENT_TIMESTAMP, ?, md5(random()::text)
         RETURNING token
       |]
@@ -162,7 +162,7 @@ checkrecovery conn check =
       [sql|
         SELECT age(CURRENT_TIMESTAMP, timestamp) <= '? min'
         FROM password_lost_request
-        WHERE (user_id = ?)
+        WHERE (identity_id = ?)
           AND (token = ?)
           AND (used_at IS NULL)
         LIMIT 1
@@ -176,7 +176,7 @@ invalidaterecovery conn check = execute conn q (Only uidV)
       [sql|
         UPDATE password_lost_request
         SET used_at = CURRENT_TIMESTAMP
-        WHERE (user_id = ?)
+        WHERE (identity_id = ?)
           AND (used_at IS NULL)
       |]
 
