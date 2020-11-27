@@ -43,8 +43,7 @@ backgroundPings
   -> PingTarget
   -> IO (BackgroundVal (Maybe CommandOutput))
 backgroundPings counters (PingTarget tgt) =
-  background
-    ()
+  backgroundLoop
     Nothing
     go
     1000000
@@ -56,11 +55,11 @@ backgroundPings counters (PingTarget tgt) =
           ]
     labelForExitCode ExitSuccess = "0"
     labelForExitCode (ExitFailure n) = Text.pack $ show $ n
-    go _ =  do
+    go =  do
       Prometheus.withLabel (executionStarted counters) "ping" Prometheus.incCounter
       ret@(code,out,_) <- readCreateProcessWithExitCode cmd ""
       Prometheus.withLabel (executionEnded counters) ("ping", labelForExitCode code) Prometheus.incCounter
       let stdoutRows = length $ ByteString.lines out
       Prometheus.withLabel (stdoutLines counters) "ping" $ \cnt -> void $ do
         Prometheus.addCounter cnt (fromIntegral stdoutRows)
-      pure (Just ret, ())
+      pure $ Just ret

@@ -5,6 +5,7 @@ module Prod.Background
   ( BackgroundVal,
     MicroSeconds,
     background,
+    backgroundLoop,
     kill,
     readBackgroundVal,
   )
@@ -32,9 +33,6 @@ instance Functor BackgroundVal where
   fmap g (BackgroundVal f ioref task) =
     BackgroundVal (g . f) ioref task
 
--- | Fantom type for annotating Int.
-type MicroSeconds n = n
-
 -- | Starts a background task continuously updating a value.
 background ::
   -- | initial state
@@ -43,18 +41,33 @@ background ::
   a ->
   -- | state-influenced task
   (b -> IO (a, b)) ->
-  -- | wait period between two executions
-  MicroSeconds Int ->
   IO (BackgroundVal a)
-background initState defaultValue task usecs = do
+background initState defaultValue task = do
   ref <- newIORef defaultValue
   BackgroundVal id ref <$> async (loop ref initState)
   where
     loop ref st0 = do
-      threadDelay usecs
       (val, st1) <- task st0
       seq val $ writeIORef ref val
       seq st1 $ loop ref st1
+
+-- | Fantom type for annotating Int.
+type MicroSeconds n = n
+
+-- | Starts a background task continuously updating a value at a periodic interval.
+-- This is implemented by interspersing a threadDelay before the task and calling background and hiding the 'state-passing' arguments.
+backgroundLoop ::
+  -- | initial value
+  a ->
+  -- | periodic task
+  IO a ->
+  -- | wait period between two executions
+  MicroSeconds Int ->
+  IO (BackgroundVal a)
+backgroundLoop defaultValue task usecs = do
+  background () defaultValue (\_ -> threadDelay usecs >> fmap adapt task)
+  where
+    adapt x = (x, ())
 
 -- | Kills the watchdog by killing the underlying async.
 kill :: MonadIO m => BackgroundVal a -> m ()

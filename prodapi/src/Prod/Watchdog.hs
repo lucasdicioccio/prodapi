@@ -1,6 +1,7 @@
 
 module Prod.Watchdog where
 
+import Control.Monad (when)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Prod.Background
@@ -8,7 +9,7 @@ import Prometheus (Vector, Label1, Label2, Counter)
 import qualified Prometheus as Prometheus
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Control.Exception.Base (IOException, catch)
-import System.Directory (setModificationTime)
+import System.Directory (setModificationTime, doesFileExist)
 
 data WatchdogResult a
   = Skipped
@@ -28,12 +29,12 @@ watchdog
   -> IO (WatchdogResult a)
   -> IO (Watchdog a)
 watchdog counters mkLabel delay action =
-    Watchdog <$> background () Skipped go delay
+    Watchdog <$> backgroundLoop Skipped go delay
   where
-    go _ = do
-          res <- action
-          Prometheus.withLabel counters (mkLabel res) Prometheus.incCounter
-          pure (res, ())
+    go = do
+      res <- action
+      Prometheus.withLabel counters (mkLabel res) Prometheus.incCounter
+      pure res
 
 -- | Basic watchdog with a vector metric.
 -- The input vector label is set with success|failed|skipped depending on the WatchdogResult.
@@ -51,13 +52,17 @@ basicLabel res = case res of
   Failed    -> "failed"
   Skipped   -> "skipped"
 
--- | Touches a file periodically, using setModificationTime
+-- | Touches a file periodically, using setModificationTime.
+-- If the file does not exists when the watchdog is initialized, then it is
+-- created empty.
 fileTouchWatchdog
   :: FilePath
   -> MicroSeconds Int
   -> IO (Watchdog UTCTime)
 fileTouchWatchdog path delay = do
     let mkLabel res = (basicLabel res, Text.pack path)
+    shouldCreate <- not <$> doesFileExist path
+    when shouldCreate $ writeFile path ""
     watchdog fileTouchWatchdogCounter mkLabel delay io
   where
     handleIOException :: IOException -> IO (WatchdogResult UTCTime)
