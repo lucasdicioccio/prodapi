@@ -6,11 +6,12 @@ module Prod.App
     initialize,
     Init,
     Runtime (..),
-    defaultRuntime,
+    alwaysReadyRuntime,
   )
 where
 
 import Data.Proxy (Proxy (..))
+import Data.Aeson (ToJSON)
 import Prod.Health
 import Prod.Prometheus
 import Prod.Status
@@ -18,9 +19,9 @@ import Servant
 import Servant.Server
 
 -- | Run a full API, with raw-serving.
-type AppApi api =
+type AppApi status api =
   HealthApi
-    :<|> StatusApi
+    :<|> StatusApi status
     :<|> PrometheusApi
     :<|> api
     :<|> Raw
@@ -34,43 +35,47 @@ initialize runtime =
   initPrometheus >> pure (Init runtime)
 
 -- | Application.
-app :: HasServer api '[]
+app :: (HasServer api '[]
+  , ToJSON status)
   => Init
+  -> IO status
   -> Server api
   -> Proxy api
   -> Application
-app (Init runtime) appHandler proxy0 =
+app (Init runtime) getStatus appHandler proxy0 =
   serve
     (proxy proxy0)
     ( handleHealth runtime
-        :<|> handleStatus runtime
+        :<|> handleStatus runtime getStatus
         :<|> handlePrometheus
         :<|> appHandler
         :<|> serveDirectoryFileServer "www"
     )
   where
-    proxy :: Proxy x -> Proxy (AppApi x)
+    proxy :: Proxy y -> Proxy (AppApi status y)
     proxy _ = Proxy
 
 -- | Application.
 appWithContext ::
-  (HasServer api context, HasContextEntry (context .++ DefaultErrorFormatters) ErrorFormatters)
+  ( HasServer api context, HasContextEntry (context .++ DefaultErrorFormatters) ErrorFormatters
+  , ToJSON status )
   =>
   Init ->
+  IO status ->
   Server api ->
   Proxy api ->
   Context context ->
   Application
-appWithContext (Init runtime) appHandler proxy0 context =
+appWithContext (Init runtime) getStatus appHandler proxy0 context =
   serveWithContext
     (proxy proxy0)
     context
     ( handleHealth runtime
-        :<|> handleStatus runtime
+        :<|> handleStatus runtime getStatus
         :<|> handlePrometheus
         :<|> appHandler
         :<|> serveDirectoryFileServer "www"
     )
   where
-    proxy :: Proxy x -> Proxy (AppApi x)
+    proxy :: Proxy x -> Proxy (AppApi status x)
     proxy _ = Proxy

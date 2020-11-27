@@ -20,9 +20,14 @@ type FullApi = Hello.Api
   :<|> Monitors.Api
   :<|> Auth.UserAuthApi
 
+type ExampleStatus = String
+
+exampleStatus :: IO ExampleStatus
+exampleStatus = pure "example"
+
 main :: IO ()
 main = do
-  init <- initialize Prod.defaultRuntime
+  init <- initialize Prod.alwaysReadyRuntime
   authRt <- Auth.initRuntime "secret-value" "pg://"
   helloRt <- Hello.initRuntime
   monitorsRt <- Monitors.initRuntime
@@ -31,6 +36,7 @@ main = do
     $ RequestLogger.logStdoutDev
     $ appWithContext
         init
+        (exampleStatus)
         (Hello.serve helloRt
          :<|> Monitors.handle monitorsRt
          :<|> Auth.handleUserAuth authRt)

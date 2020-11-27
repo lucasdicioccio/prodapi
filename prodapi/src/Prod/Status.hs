@@ -20,31 +20,33 @@ import Servant ((:>), Get, JSON)
 import Servant.Server (Handler)
 import System.IO.Unsafe (unsafePerformIO)
 
-type StatusApi =
+type StatusApi a =
   "status"
-    :> Get '[JSON] Status
+    :> Get '[JSON] (Status a)
 
 newtype Identification = Identification Text
   deriving
     (ToJSON)
     via Text
 
-data Status
+data Status a
   = Status
       { identification :: !Identification,
         liveness :: !Liveness,
-        readiness :: !Readiness
+        readiness :: !Readiness,
+        appStatus :: !a
       }
   deriving (Generic)
 
-instance ToJSON Status
+instance ToJSON a => ToJSON (Status a)
 
-handleStatus :: Runtime -> Handler Status
-handleStatus runtime =
+handleStatus :: Runtime -> IO a -> Handler (Status a)
+handleStatus runtime getAppStatus =
   liftIO $
     Status this
       <$> Health.liveness runtime
       <*> Health.readiness runtime
+      <*> getAppStatus
 
 {-# NOINLINE this #-}
 this :: Identification

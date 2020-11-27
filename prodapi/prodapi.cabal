@@ -43,6 +43,7 @@ library
     , bytestring
     , containers
     , cookie
+    , directory
     , http-media
     , jwt
     , postgresql-simple

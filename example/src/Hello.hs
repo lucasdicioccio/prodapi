@@ -13,7 +13,8 @@ import Data.Text (Text)
 import Prod.Prometheus (timeIt)
 import System.Random (randomRIO)
 import qualified Prometheus as Prometheus
-import Prod.Watchdog (basicWatchdog, Watchdog, WatchdogResult(..))
+import Prod.Watchdog (basicWatchdog, Watchdog, WatchdogResult(..), fileTouchWatchdog)
+import Data.Time.Clock (UTCTime)
 
 type Api = "hello-world" :> Get '[JSON] Text
 
@@ -33,25 +34,27 @@ newCounters =
           (Prometheus.Info name help)
           Prometheus.defaultQuantiles
 
-startWatchdog :: IO (Watchdog ())
-startWatchdog = do
+helloWatchdog :: IO (Watchdog ())
+helloWatchdog = do
   counter <- Prometheus.register
-      $ Prometheus.vector "status"
-      $ Prometheus.counter (Prometheus.Info "watchdog_hello" "continuously working")
+    $ Prometheus.vector "status"
+    $ Prometheus.counter (Prometheus.Info "watchdog_hello" "continuously working")
   basicWatchdog counter 500000 (pure $ Success ())
 
 data Runtime = Runtime
   { counters :: Counters
-  , watchdog :: Watchdog ()
+  , watchdog1 :: Watchdog ()
+  , watchdog2 :: Watchdog UTCTime
   }
 
 initRuntime :: IO Runtime
 initRuntime = Runtime
   <$> newCounters
-  <*> startWatchdog
+  <*> helloWatchdog
+  <*> fileTouchWatchdog "./example-prodapi-watchdog" 5000000
 
 serve :: Runtime -> Handler Text
 serve runtime = do
-    liftIO $ timeIt helloes (counters runtime) $ do
-      threadDelay =<< randomRIO (100, 10000)
-      pure "hello world"
+  liftIO $ timeIt helloes (counters runtime) $ do
+    threadDelay =<< randomRIO (100, 10000)
+    pure "hello world"

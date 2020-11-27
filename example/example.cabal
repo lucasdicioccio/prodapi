@@ -28,6 +28,7 @@ executable example
                      , wai-extra
                      , warp
                      , text
+                     , time
                      , prometheus-client
                      , random
                      , aeson

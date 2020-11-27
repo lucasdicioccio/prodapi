@@ -9,7 +9,9 @@ module Prod.Health
     Reason (..),
     Readiness (..),
     Runtime (..),
-    defaultRuntime,
+    alwaysReadyRuntime,
+    withLiveness,
+    withReadiness,
   )
 where
 
@@ -17,7 +19,6 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (ToJSON (..), Value (String))
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Prod.Background (BackgroundVal, readBackgroundVal)
 import Servant
 
 data Runtime
@@ -26,8 +27,14 @@ data Runtime
         readiness :: IO Readiness
       }
 
-defaultRuntime :: Runtime
-defaultRuntime = Runtime (pure Alive) (pure Ready)
+alwaysReadyRuntime :: Runtime
+alwaysReadyRuntime = Runtime (pure Alive) (pure Ready)
+
+withReadiness :: IO Readiness -> Runtime -> Runtime
+withReadiness io rt = rt { readiness = io }
+
+withLiveness :: IO Liveness -> Runtime -> Runtime
+withLiveness io rt = rt { liveness = io }
 
 data Liveness = Alive
 
