@@ -141,7 +141,8 @@ inc f s cnts =
 renderStatus :: RenderStatus a
 renderStatus = const $ section_ $ do
   h1_ "user-auth"
-  p_ $ with form_ [ action_ "/user-auth/login" , method_ "post" ] $ do
+  h4_ "login"
+  p_ $ with form_ [ id_ "login-form", action_ "/user-auth/login" , method_ "post" ] $ do
          p_ $ do
            label_ [ for_ "login-email", type_ "text"  ] "email"
            input_ [ type_ "text", id_ "login-email", name_ "email" ]
@@ -150,6 +151,37 @@ renderStatus = const $ section_ $ do
            input_ [ type_ "password", id_ "login-plain", name_ "plain" ]
          p_ $ do
            input_ [ type_ "submit", value_ "login" ]
+  h4_ "register"
+  p_ $ with form_ [ id_ "register-form", action_ "/user-auth/registration" , method_ "post" ] $ do
+         p_ $ do
+           label_ [ for_ "register-email", type_ "text"  ] "email"
+           input_ [ type_ "text", id_ "register-email", name_ "email" ]
+         p_ $ do
+           label_ [ for_ "register-plain", type_ "text"  ] "password"
+           input_ [ type_ "password", id_ "register-plain", name_ "plain" ]
+         p_ $ do
+           input_ [ type_ "submit", value_ "register" ]
+  h4_ "recovery-request"
+  p_ $ with form_ [ id_ "recovery-request-form", action_ "/user-auth/recovery/request" , method_ "post" ] $ do
+         p_ $ do
+           label_ [ for_ "recovery-request-email", type_ "text"  ] "email"
+           input_ [ type_ "text", id_ "recovery-request-email", name_ "email" ]
+         p_ $ do
+           input_ [ type_ "submit", value_ "recover" ]
+  h4_ "recovery-apply"
+  p_ $ with form_ [ id_ "recovery-apply-form", action_ "/user-auth/recovery/apply" , method_ "post" ] $ do
+         p_ $ do
+           label_ [ for_ "recovery-apply-email", type_ "text"  ] "email"
+           input_ [ type_ "text", id_ "recovery-apply-email", name_ "email" ]
+         p_ $ do
+           label_ [ for_ "recovery-apply-plain", type_ "text"  ] "new-password"
+           input_ [ type_ "password", id_ "recovery-apply-plain", name_ "plain" ]
+         p_ $ do
+           label_ [ for_ "recovery-apply-token", type_ "text"  ] "token"
+           input_ [ type_ "password", id_ "recovery-apply-token", name_ "token" ]
+         p_ $ do
+           input_ [ type_ "submit", value_ "recover" ]
+  h4_ "misc"
   p_ $ with a_ [ href_ "/user-auth/whoami" ] "whoami"
   p_ $ with a_ [ href_ "/user-auth/echo-cookie" ] "echo-cookie"
   p_ $ with form_ [ action_ "/user-auth/clean-cookie" , method_ "post" ]
