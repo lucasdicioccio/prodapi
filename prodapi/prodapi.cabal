@@ -52,6 +52,7 @@ library
     , prometheus-metrics-ghc
     , servant
     , servant-server >= 0.18
+    , http-api-data
     , text
     , time
     , uuid

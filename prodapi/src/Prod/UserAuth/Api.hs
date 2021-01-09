@@ -51,14 +51,14 @@ type RegisterApi =
   Summary "register a new user"
     :> "user-auth"
     :> "registration"
-    :> ReqBody '[JSON] RegistrationRequest
+    :> ReqBody '[FormUrlEncoded, JSON] RegistrationRequest
     :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] RegistrationResult)
 
 type LoginApi =
   Summary "login as a user"
     :> "user-auth"
     :> "login"
-    :> ReqBody '[JSON] LoginAttempt
+    :> ReqBody '[FormUrlEncoded, JSON] LoginAttempt
     :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] LoginResult)
 
 type RequestRecoveryApi =
@@ -66,7 +66,7 @@ type RequestRecoveryApi =
     :> "user-auth"
     :> "recovery"
     :> "request"
-    :> ReqBody '[JSON] RecoveryRequest
+    :> ReqBody '[FormUrlEncoded, JSON] RecoveryRequest
     :> Post '[JSON] RecoveryRequestNotification
 
 type ApplyRecoveryApi =
@@ -74,7 +74,7 @@ type ApplyRecoveryApi =
     :> "user-auth"
     :> "recovery"
     :> "apply"
-    :> ReqBody '[JSON] ApplyRecoveryRequest
+    :> ReqBody '[FormUrlEncoded, JSON] ApplyRecoveryRequest
     :> Post '[JSON] RecoveryResult
 
 type HelloProtectedApi =

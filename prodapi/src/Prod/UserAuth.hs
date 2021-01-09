@@ -141,4 +141,16 @@ inc f s cnts =
 renderStatus :: RenderStatus a
 renderStatus = const $ section_ $ do
   h1_ "user-auth"
-  with a_ [ href_ "/user-auth/whoami" ] "whoami"
+  p_ $ with form_ [ action_ "/user-auth/login" , method_ "post" ] $ do
+         p_ $ do
+           label_ [ for_ "login-email", type_ "text"  ] "email"
+           input_ [ type_ "text", id_ "login-email", name_ "email" ]
+         p_ $ do
+           label_ [ for_ "login-plain", type_ "text"  ] "password"
+           input_ [ type_ "password", id_ "login-plain", name_ "plain" ]
+         p_ $ do
+           input_ [ type_ "submit", value_ "login" ]
+  p_ $ with a_ [ href_ "/user-auth/whoami" ] "whoami"
+  p_ $ with a_ [ href_ "/user-auth/echo-cookie" ] "echo-cookie"
+  p_ $ with form_ [ action_ "/user-auth/clean-cookie" , method_ "post" ]
+         $ input_ [ type_ "submit", value_ "clear cookie" ]

@@ -11,6 +11,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import Servant
+import Web.FormUrlEncoded
 
 data RecoveryResult = RecoverySuccess | RecoveryFailed Text
   deriving (Show, Generic)
@@ -28,6 +29,7 @@ data ApplyRecoveryRequest
   deriving (Generic)
 
 instance FromJSON ApplyRecoveryRequest
+instance FromForm ApplyRecoveryRequest
 
 data LoggedInCookie = LoggedInCookie {encodedJwt :: !Text}
   deriving (Generic)
@@ -71,6 +73,7 @@ data RegistrationRequest
   deriving (Generic)
 
 instance FromJSON RegistrationRequest
+instance FromForm RegistrationRequest
 
 data RegistrationResult = RegisterSuccess SessionData | RegisterFailure
   deriving (Generic)
@@ -96,6 +99,7 @@ data RecoveryRequest
   deriving (Generic)
 
 instance FromJSON RecoveryRequest
+instance FromForm RecoveryRequest
 
 data RecoveryRequestNotification
   = RecoveryRequestNotification
@@ -114,6 +118,7 @@ data LoginAttempt
   deriving (Generic)
 
 instance FromJSON LoginAttempt
+instance FromForm LoginAttempt
 
 data LoginResult = LoginSuccess SessionData | LoginFailed
   deriving (Generic)
