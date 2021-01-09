@@ -17,6 +17,8 @@ module Prod.UserAuth
     --
     authorized,
     limited,
+    --
+    renderStatus
   )
 where
 
@@ -24,6 +26,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (Value (Number))
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import Prod.Status (RenderStatus)
 import Prod.UserAuth.Api (CookieProtect, UserAuthApi)
 import Prod.UserAuth.Backend
 import Prod.UserAuth.Base
@@ -33,6 +36,8 @@ import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, sec
 import qualified Prometheus as Prometheus
 import Servant
 import Servant.Server
+
+import Lucid
 
 handleUserAuth :: Runtime -> Server UserAuthApi
 handleUserAuth runtime =
@@ -132,3 +137,8 @@ inc ::
   m ()
 inc f s cnts =
   liftIO $ Prometheus.withLabel (f cnts) s Prometheus.incCounter
+
+renderStatus :: RenderStatus a
+renderStatus = const $ section_ $ do
+  h1_ "user-auth"
+  with a_ [ href_ "/user-auth/whoami" ] "whoami"

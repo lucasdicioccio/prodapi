@@ -14,7 +14,7 @@ import Data.Proxy (Proxy(..))
 import Servant
 import Servant.Server
 import Prod.App as Prod
-import Prod.Status (statusPage)
+import Prod.Status (statusPage, metricsSection)
 import qualified Prod.UserAuth as Auth
 
 import qualified Hello
@@ -67,7 +67,7 @@ main = do
     $ appWithContext
         init
         (exampleStatus monitorsRt)
-        (statusPage)
+        (statusPage <> Auth.renderStatus <> metricsSection)
         (Hello.serve helloRt
          :<|> Monitors.handle monitorsRt
          :<|> Auth.handleUserAuth authRt)

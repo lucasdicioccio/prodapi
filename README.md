@@ -38,6 +38,7 @@ modules:
 
 ## status
 - identification, healthiness
+- helpful /status page
 
 ## metrics
 - exposes counters over prometheus

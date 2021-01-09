@@ -8,6 +8,7 @@ module Prod.Status
   ( StatusApi,
     RenderStatus,
     defaultStatusPage,
+    metricsSection,
     statusPage,
     handleStatus,
   )
@@ -100,16 +101,13 @@ defaultStatusPage renderAppStatus = go
           section_ $ do
             h1_ "app status"
             renderAppStatus appStatus
-          section_ $ do
-            h1_ "metrics"
-
     renderLiveness :: Liveness -> Html ()
-    renderLiveness Alive = p_ "alive"
+    renderLiveness Alive = p_ $ with a_ [ href_ "/health/alive" ] "alive"
 
     renderReadiness :: Readiness -> Html ()
-    renderReadiness Ready = p_ "ready"
+    renderReadiness Ready = p_ $ with a_ [ href_ "/health/ready" ] "ready"
     renderReadiness (Ill reasons) = do
-      p_ "not-ready"
+      p_ $ with a_ [ href_ "/health/ready" ] "not-ready"
       ul_ $ do
         traverse_ renderReason reasons
 
@@ -121,3 +119,10 @@ defaultStatusPage renderAppStatus = go
 -- application-status rendering.
 statusPage :: ToHtml a => RenderStatus a
 statusPage = defaultStatusPage toHtml
+
+-- | Section with metrics.
+metricsSection :: RenderStatus a
+metricsSection = const $
+  section_ $ do
+    h1_ "metrics"
+    with div_ [ id_ "metrics" ] $ pure ()
