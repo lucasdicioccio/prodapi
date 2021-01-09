@@ -7,4 +7,4 @@ module Monitors (
 
 import Monitors.Api (Api)
 import Monitors.Handlers (handle)
-import Monitors.Base (initRuntime)
+import Monitors.Base (initRuntime, Runtime(..))

@@ -39,14 +39,15 @@ app :: (HasServer api '[]
   , ToJSON status)
   => Init
   -> IO status
+  -> RenderStatus status
   -> Server api
   -> Proxy api
   -> Application
-app (Init runtime) getStatus appHandler proxy0 =
+app (Init runtime) getStatus renderStatus appHandler proxy0 =
   serve
     (proxy proxy0)
     ( handleHealth runtime
-        :<|> handleStatus runtime getStatus
+        :<|> handleStatus runtime getStatus renderStatus
         :<|> handlePrometheus
         :<|> appHandler
         :<|> serveDirectoryFileServer "www"
@@ -62,16 +63,17 @@ appWithContext ::
   =>
   Init ->
   IO status ->
+  RenderStatus status ->
   Server api ->
   Proxy api ->
   Context context ->
   Application
-appWithContext (Init runtime) getStatus appHandler proxy0 context =
+appWithContext (Init runtime) getStatus renderStatus appHandler proxy0 context =
   serveWithContext
     (proxy proxy0)
     context
     ( handleHealth runtime
-        :<|> handleStatus runtime getStatus
+        :<|> handleStatus runtime getStatus renderStatus
         :<|> handlePrometheus
         :<|> appHandler
         :<|> serveDirectoryFileServer "www"

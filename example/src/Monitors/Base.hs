@@ -14,7 +14,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
 import GHC.Generics (Generic)
 import Prod.Background
-import Data.IORef (IORef, newIORef)
+import Data.IORef (IORef, newIORef, readIORef)
 import Servant.API (FromHttpApiData)
 
 import System.Process.ByteString (readCreateProcessWithExitCode)
@@ -40,6 +40,9 @@ data Runtime = Runtime {
 
 initRuntime :: IO Runtime
 initRuntime = Runtime <$> newIORef [] <*> newCounters
+
+readRegistrations :: Runtime -> IO [Registration]
+readRegistrations = fmap (fmap fst) . readIORef . pings
 
 type CommandOutput = (ExitCode, ByteString, ByteString)
 

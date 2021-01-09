@@ -2,9 +2,13 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Prod.Status
   ( StatusApi,
+    RenderStatus,
+    defaultStatusPage,
+    statusPage,
     handleStatus,
   )
 where
@@ -36,6 +40,7 @@ newtype Identification = Identification Text
     (ToJSON)
     via Text
 
+-- | Type to render a status page.
 type RenderStatus a = Status a -> Html ()
 
 data Status a
@@ -55,14 +60,14 @@ instance ToJSON a => ToJSON (Status a) where
                  , "status" .= toJSON st
                  ]
 
-handleStatus :: Runtime -> IO a -> Handler (Status a)
-handleStatus runtime getAppStatus =
+handleStatus :: Runtime -> IO a -> RenderStatus a -> Handler (Status a)
+handleStatus runtime getAppStatus render =
   liftIO $
     Status this
       <$> Health.liveness runtime
-      <*> Health.readiness runtime
+      <*> Health.completeReadiness runtime
       <*> getAppStatus
-      <*> (pure renderSimpleStatus)
+      <*> (pure render)
 
 {-# NOINLINE this #-}
 this :: Identification
@@ -73,22 +78,31 @@ instance {-# OVERLAPPABLE #-} MimeRender HTML (Status a) where
     where
       render = renderer st
 
-renderSimpleStatus :: Status a -> Html ()
-renderSimpleStatus
-  (Status (Identification uuid) liveness readiness _ _) =
-    html_ $ do
-      head_ $ do
-        title_ "status page"
-        toHtmlRaw @Text "<script async type=\"text/javascript\" src=\"metrics.js\"></script>"
-      body_ $ do
-        section_ $ do
-          h1_ "identification"
-          p_ $ toHtml uuid
-          renderLiveness liveness
-          renderReadiness readiness
-        section_ $ do
-          h1_ "metrics"
+defaultStatusPage :: forall a. (a -> Html ()) -> RenderStatus a
+defaultStatusPage renderAppStatus = go
   where
+    go :: Status a -> Html ()
+    go (Status (Identification uuid) liveness readiness appStatus _) =
+      html_ $ do
+        head_ $ do
+          title_ "status page"
+          toHtmlRaw @Text "<script async type=\"text/javascript\" src=\"metrics.js\"></script>"
+        body_ $ do
+          section_ $ do
+            h1_ "identification"
+            p_ $ toHtml uuid
+          section_ $ do
+            h1_ "general status"
+            renderLiveness liveness
+            renderReadiness readiness
+            with form_ [ action_ "/health/drain" , method_ "post" ] $
+              input_ [ type_ "submit", value_ "drain me" ]
+          section_ $ do
+            h1_ "app status"
+            renderAppStatus appStatus
+          section_ $ do
+            h1_ "metrics"
+
     renderLiveness :: Liveness -> Html ()
     renderLiveness Alive = p_ "alive"
 
@@ -102,3 +116,8 @@ renderSimpleStatus
     renderReason :: Reason -> Html ()
     renderReason (Reason r) =
       li_ $ toHtml r
+
+-- | Like defaultStatusPage but uses a type-class-defined to pass the
+-- application-status rendering.
+statusPage :: ToHtml a => RenderStatus a
+statusPage = defaultStatusPage toHtml
