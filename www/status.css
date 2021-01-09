@@ -1,0 +1,18 @@
+* {
+	font-family: sans;
+}
+
+body {
+	margin: 1em;
+}
+
+body > section {
+	margin: 1em;
+	padding-left: 1em;
+	border-left: 8px solid lightgray;
+}
+
+h1 {
+	text-decoration: underline;
+	text-decoration-style: dashed;
+}

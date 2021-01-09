@@ -87,6 +87,7 @@ defaultStatusPage renderAppStatus = go
       html_ $ do
         head_ $ do
           title_ "status page"
+          link_ [ rel_ "stylesheet", type_ "text/css", href_ "status.css"]
           toHtmlRaw @Text "<script async type=\"text/javascript\" src=\"metrics.js\"></script>"
         body_ $ do
           section_ $ do
