@@ -1,17 +1,21 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Monitors.Base where
 
 import Control.Monad (void)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
 import GHC.Generics (Generic)
 import Prod.Background
 import Data.IORef (IORef, newIORef)
+import Servant.API (FromHttpApiData)
 
 import System.Process.ByteString (readCreateProcessWithExitCode)
 import System.Process.ListLike (proc)
@@ -23,7 +27,8 @@ import qualified Prometheus as Prometheus
 type InternetDestination = Text
 
 newtype PingTarget = PingTarget InternetDestination
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic)
+  deriving newtype (ToJSON, FromJSON, FromHttpApiData)
 
 type Registration = Text
 type DeRegistration = Int
@@ -37,6 +42,18 @@ initRuntime :: IO Runtime
 initRuntime = Runtime <$> newIORef [] <*> newCounters
 
 type CommandOutput = (ExitCode, ByteString, ByteString)
+
+data CommandStatus = CommandStatus { exitCode :: Int , output :: Text , errput :: Text }
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+outputToStatus :: CommandOutput -> CommandStatus
+outputToStatus (code, out, err) =
+  let tout = Text.decodeUtf8 out
+      terr = Text.decodeUtf8 err
+  in case code of
+    ExitSuccess -> CommandStatus 0 tout terr
+    ExitFailure n -> CommandStatus n tout terr
 
 backgroundPings
   :: Counters
