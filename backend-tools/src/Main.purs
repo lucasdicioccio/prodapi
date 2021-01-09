@@ -4,11 +4,11 @@ import Prelude
 
 import Effect (Effect)
 import Effect.Ref as Ref
-import Halogen.Aff (awaitBody, runHalogenAff)
+import Halogen.Aff (awaitBody, selectElement, runHalogenAff)
 import Halogen.VDom.Driver (runUI)
 
 import Data.List (List(..))
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Map as Map
 import Affjax as AX
 import Affjax.ResponseFormat as AXRF
@@ -20,6 +20,7 @@ import Halogen.HTML as HH
 import Monitor (render, handleAction, State, Action(..))
 import History (emptyHistory)
 import HistoryPacked as PH
+import Web.DOM.ParentNode (QuerySelector(..))
 
 foreign import tabUrl :: (String -> Effect Unit) -> Effect Unit
 
@@ -29,7 +30,9 @@ main = do
   tabUrl (\url -> Ref.write url ref)
   runHalogenAff do
     body <- awaitBody
-    runUI (component ref) unit body
+    elem <- selectElement (QuerySelector "#metrics")
+    let tgt = fromMaybe body elem
+    runUI (component ref) unit tgt
 
 component
   :: forall query input output m. MonadAff m
