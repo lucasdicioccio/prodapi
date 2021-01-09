@@ -14,7 +14,7 @@ import Data.Proxy (Proxy(..))
 import Servant
 import Servant.Server
 import Prod.App as Prod
-import Prod.Status (statusPage, metricsSection)
+import Prod.Status (statusPage, metricsSection, versionsSection)
 import qualified Prod.UserAuth as Auth
 
 import qualified Hello
@@ -24,6 +24,8 @@ import qualified Monitors.Base as Monitors
 import Data.Foldable (traverse_)
 import GHC.Generics (Generic)
 import Lucid (HtmlT, ToHtml(..), h4_, div_, p_, ul_, li_, a_, href_, with)
+
+import qualified Paths_prodapi
 
 type FullApi = Hello.Api
   :<|> Monitors.Api
@@ -67,7 +69,7 @@ main = do
     $ appWithContext
         init
         (exampleStatus monitorsRt)
-        (statusPage <> Auth.renderStatus <> metricsSection)
+        (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection)
         (Hello.serve helloRt
          :<|> Monitors.handle monitorsRt
          :<|> Auth.handleUserAuth authRt)

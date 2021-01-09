@@ -9,6 +9,7 @@ module Prod.Status
     RenderStatus,
     defaultStatusPage,
     metricsSection,
+    versionsSection,
     statusPage,
     handleStatus,
   )
@@ -29,6 +30,7 @@ import Servant.Server (Handler)
 import System.IO.Unsafe (unsafePerformIO)
 import Servant (MimeRender(..))
 import Prod.MimeTypes (HTML)
+import Data.Version (Version, showVersion)
 
 import Lucid
 
@@ -127,3 +129,14 @@ metricsSection = const $
   section_ $ do
     h1_ "metrics"
     with div_ [ id_ "metrics" ] $ pure ()
+
+versionsSection :: [(String, Version)] -> RenderStatus a
+versionsSection pkgs = const $
+  section_ $ do
+    h1_ "versions"
+    ul_ $
+      traverse_ renderVersion pkgs
+  where
+    renderVersion :: (String, Version) -> Html ()
+    renderVersion (pkg, ver) =
+       li_ $ p_ $ toHtml $ pkg <> ":" <> showVersion ver
