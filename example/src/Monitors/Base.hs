@@ -23,14 +23,20 @@ import System.Exit (ExitCode(..))
 
 import Monitors.Counters (Counters(..), newCounters)
 import qualified Prometheus as Prometheus
+import Web.FormUrlEncoded
 
 type InternetDestination = Text
 
-newtype PingTarget = PingTarget InternetDestination
+newtype PingTarget = PingTarget { host :: InternetDestination }
   deriving (Show, Eq, Ord, Generic)
   deriving newtype (ToJSON, FromJSON, FromHttpApiData)
+  deriving anyclass (FromForm)
 
-type Registration = Text
+newtype Registration = Registration { registration :: Text }
+  deriving (Show, Eq, Ord, Generic)
+  deriving newtype (ToJSON, FromJSON, FromHttpApiData)
+  deriving anyclass (FromForm)
+
 type DeRegistration = Int
 
 data Runtime = Runtime {

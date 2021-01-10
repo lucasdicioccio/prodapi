@@ -13,14 +13,14 @@ import Prod.Background (BackgroundVal, kill, readBackgroundVal)
 import Prod.UserAuth (UserAuthInfo, authorized)
 
 handle :: Runtime -> Server Api
-handle rt = addPing rt :<|> readPing rt :<|> removePing rt
+handle rt = addPing rt :<|> readPing rt :<|> removePing rt :<|> removePing rt
 
 addPing :: Runtime -> UserAuthInfo -> PingTarget -> Handler Registration
 addPing rt auth tgt@(PingTarget target) = authorized auth $ \id -> liftIO $ do
   bkg <- backgroundPings (counters rt) tgt
-  let regname = target
-  _ <- atomicModifyIORef' (pings rt) (\xs -> ((regname, bkg) : xs, ()))
-  pure $ regname
+  let reg = Registration target
+  _ <- atomicModifyIORef' (pings rt) (\xs -> ((reg, bkg) : xs, ()))
+  pure $ reg
 
 readPing :: Runtime -> UserAuthInfo -> [Registration] -> Handler [Maybe CommandStatus]
 readPing rt auth tgts = authorized auth $ \id -> liftIO $ do

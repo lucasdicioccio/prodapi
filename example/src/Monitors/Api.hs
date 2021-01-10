@@ -7,11 +7,11 @@ import Monitors.Base
 import Prod.UserAuth.Api (CookieProtect)
 
 type Api = "monitors" :>
-  ( AddPing :<|> ReadPing :<|> RemovePing )
+  ( AddPing :<|> ReadPing :<|> RemovePing :<|> PostRemovePing)
 
 type AddPing = "ping"
   :> CookieProtect
-  :> ReqBody '[JSON] PingTarget 
+  :> ReqBody '[FormUrlEncoded,JSON] PingTarget 
   :> Post '[JSON] Registration
 
 type ReadPing = "ping"
@@ -24,3 +24,8 @@ type RemovePing = "ping"
   :> CookieProtect
   :> ReqBody '[JSON] Registration
   :> Delete '[JSON] DeRegistration
+
+type PostRemovePing = "ping-delete"
+  :> CookieProtect
+  :> ReqBody '[FormUrlEncoded] Registration
+  :> Post '[JSON] DeRegistration

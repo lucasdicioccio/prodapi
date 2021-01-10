@@ -23,7 +23,7 @@ import qualified Monitors.Base as Monitors
 
 import Data.Foldable (traverse_)
 import GHC.Generics (Generic)
-import Lucid (HtmlT, ToHtml(..), h4_, div_, p_, ul_, li_, a_, href_, with)
+import Lucid (HtmlT, ToHtml(..), h4_, div_, p_, ul_, li_, a_, href_, with, form_, id_, action_, method_, label_, for_, type_, input_, name_, value_)
 
 import qualified Paths_prodapi
 
@@ -44,10 +44,23 @@ renderStatus (ExampleStatus regs) = div_ $ do
     p_ $ toHtml $ "registrations (" <> (show $ length regs) <> ")"
     ul_ $ do
       traverse_ (renderRegistration) regs
+  
+    h4_ "add ping target"
+    p_ $ with form_ [ id_ "add-ping-form", action_ "/monitors/ping" , method_ "post" ] $ do
+           p_ $ do
+             label_ [ for_ "add-ping-host", type_ "text"  ] "host"
+             input_ [ type_ "text", id_ "add-ping-host", name_ "host" ]
+           p_ $ do
+             input_ [ type_ "submit", value_ "add" ]
   where
     renderRegistration :: Monitors.Registration -> HtmlT m ()
-    renderRegistration reg = li_ $
+    renderRegistration (Monitors.Registration reg) = li_ $ do
       with a_ [ href_ (readMonitorUrl reg) ] $ toHtml reg
+      with form_ [ action_ "/monitors/ping-delete" , method_ "post" ] $ do
+           p_ $ do
+             input_ [ type_ "hidden", id_ "del-ping-host", name_ "registration", value_ reg ]
+           p_ $ do
+             input_ [ type_ "submit", value_ "del" ]
 
     readMonitorUrl reg = "/monitors/ping/latest?target=" <> reg
 
