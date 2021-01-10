@@ -9,13 +9,17 @@ module Main where
 import Network.Wai.Handler.Warp as Warp
 import Network.Wai.Middleware.RequestLogger as RequestLogger
 
+import Data.Function ((&))
 import Data.Aeson (ToJSON(..))
+import qualified Data.Set as Set
 import Data.Proxy (Proxy(..))
 import Servant
 import Servant.Server
 import Prod.App as Prod
 import Prod.Status (statusPage, metricsSection, versionsSection)
+import Prod.Health as Health
 import qualified Prod.UserAuth as Auth
+import qualified Prod.Discovery as Discovery
 
 import qualified Hello
 import qualified Monitors
@@ -31,15 +35,17 @@ type FullApi = Hello.Api
   :<|> Monitors.Api
   :<|> Auth.UserAuthApi
 
-data ExampleStatus = ExampleStatus { registrations :: [Monitors.Registration] }
-  deriving (Generic)
+data ExampleStatus = ExampleStatus
+  { registrations :: [Monitors.Registration]
+  , hosts :: [Discovery.Host]
+  } deriving (Generic)
 instance ToJSON ExampleStatus
 instance ToHtml ExampleStatus where
   toHtml = renderStatus
   toHtmlRaw = renderStatus
 
 renderStatus :: forall m. (Monad m) => ExampleStatus -> HtmlT m ()
-renderStatus (ExampleStatus regs) = div_ $ do
+renderStatus (ExampleStatus regs hosts) = div_ $ do
     h4_ "example status"
     p_ $ toHtml $ "registrations (" <> (show $ length regs) <> ")"
     ul_ $ do
@@ -52,6 +58,10 @@ renderStatus (ExampleStatus regs) = div_ $ do
              input_ [ type_ "text", id_ "add-ping-host", name_ "host" ]
            p_ $ do
              input_ [ type_ "submit", value_ "add" ]
+
+    h4_ "discovered hosts"
+    ul_ $ do
+      traverse_ renderHost hosts
   where
     renderRegistration :: Monitors.Registration -> HtmlT m ()
     renderRegistration (Monitors.Registration reg) = li_ $ do
@@ -64,24 +74,36 @@ renderStatus (ExampleStatus regs) = div_ $ do
 
     readMonitorUrl reg = "/monitors/ping/latest?target=" <> reg
 
-exampleStatus :: Monitors.Runtime -> IO ExampleStatus
-exampleStatus mRt = do
+    renderHost :: Discovery.Host -> HtmlT m ()
+    renderHost txt = li_ $ p_ $ toHtml txt
+
+exampleStatus :: Hello.Runtime -> Monitors.Runtime -> IO ExampleStatus
+exampleStatus hRt mRt = do
   ExampleStatus
     <$> Monitors.readRegistrations mRt
+    <*> Hello.readDiscoveredHosts hRt
+
+hasFoundHostsReadiness :: Hello.Runtime -> IO Readiness
+hasFoundHostsReadiness = fmap adapt . Hello.readDiscoveredHosts
+  where
+    adapt :: [Discovery.Host] -> Readiness
+    adapt [] = Ill $ Set.fromList [Reason "no hosts found"]
+    adapt _  = Ready
 
 main :: IO ()
 main = do
-  healthRt <- Prod.alwaysReadyRuntime
-  init <- initialize healthRt
-  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example"
   helloRt <- Hello.initRuntime
   monitorsRt <- Monitors.initRuntime
+
+  healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime
+  init <- initialize healthRt
+  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example"
   Warp.run
     8000
     $ RequestLogger.logStdoutDev
     $ appWithContext
         init
-        (exampleStatus monitorsRt)
+        (exampleStatus helloRt monitorsRt)
         (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection)
         (Hello.serve helloRt
          :<|> Monitors.handle monitorsRt

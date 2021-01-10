@@ -17,6 +17,7 @@ library
   exposed-modules:
       Prod.App
       Prod.Background
+      Prod.Discovery
       Prod.Echo
       Prod.Health
       Prod.MimeTypes
@@ -58,4 +59,5 @@ library
     , time
     , uuid
     , wai
+    , process-extras
   default-language:    Haskell2010

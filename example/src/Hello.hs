@@ -5,6 +5,7 @@
 
 module Hello where
 
+import Data.Maybe (fromMaybe)
 import Servant
 import Servant.Server
 import Control.Monad.IO.Class (liftIO)
@@ -15,6 +16,7 @@ import System.Random (randomRIO)
 import qualified Prometheus as Prometheus
 import Prod.Watchdog (basicWatchdog, Watchdog, WatchdogResult(..), fileTouchWatchdog)
 import Data.Time.Clock (UTCTime)
+import Prod.Discovery (Discovery, dnsA, Host, toMaybe, readCurrent)
 
 type Api = "hello-world" :> Get '[JSON] Text
 
@@ -45,13 +47,18 @@ data Runtime = Runtime
   { counters :: Counters
   , watchdog1 :: Watchdog ()
   , watchdog2 :: Watchdog UTCTime
+  , discovery :: Discovery [Host]
   }
+
+readDiscoveredHosts :: Runtime -> IO [Host]
+readDiscoveredHosts = fmap (fromMaybe [] . toMaybe) . readCurrent . discovery
 
 initRuntime :: IO Runtime
 initRuntime = Runtime
   <$> newCounters
   <*> helloWatchdog
   <*> fileTouchWatchdog "./example-prodapi-watchdog" 5000000
+  <*> dnsA "dicioccio.fr"
 
 serve :: Runtime -> Handler Text
 serve runtime = do
