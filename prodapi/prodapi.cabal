@@ -24,6 +24,7 @@ library
       Prod.Prometheus
       Prod.Reports
       Prod.Status
+      Prod.Tracer
       Prod.UserAuth
       Prod.UserAuth.Api
       Prod.UserAuth.Backend
@@ -60,4 +61,5 @@ library
     , uuid
     , wai
     , process-extras
+    , contravariant
   default-language:    Haskell2010
