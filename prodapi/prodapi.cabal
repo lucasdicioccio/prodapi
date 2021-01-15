@@ -33,6 +33,7 @@ library
       Prod.UserAuth.HandlerCombinators
       Prod.UserAuth.JWT
       Prod.UserAuth.Runtime
+      Prod.UserAuth.Trace
       Prod.Watchdog
       Paths_prodapi
   -- other-modules:
