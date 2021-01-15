@@ -23,6 +23,7 @@ module Prod.UserAuth
     Track(..),
     BehaviourTrack(..),
     BackendTrack(..),
+    JwtTrack(..),
   )
 where
 
@@ -36,7 +37,7 @@ import Prod.UserAuth.Backend
 import Prod.UserAuth.Base
 import Prod.UserAuth.HandlerCombinators
 import Prod.UserAuth.JWT
-import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, secretstring, tokenValidityDuration, withConn)
+import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, secretstring, tokenValidityDuration, withConn, traceAttempt)
 import Prod.UserAuth.Trace
 import qualified Prometheus as Prometheus
 import Servant
@@ -106,6 +107,7 @@ handleLogin ::
   Handler (Headers '[Header "Set-Cookie" LoggedInCookie] LoginResult)
 handleLogin runtime attempt = do
   inc logins "requested" (counters runtime)
+  traceAttempt runtime attempt
   res <- liftIO $ loginIO runtime attempt
   withheaders <- liftIO $ wrapHeader res
   pure $ withheaders res

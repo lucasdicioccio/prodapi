@@ -3,21 +3,22 @@ module Prod.UserAuth.Trace where
 
 import Data.ByteString (ByteString)
 import Prod.UserAuth.Base
+import Web.JWT
 
 data Track =
     Behaviour BehaviourTrack
+  | Bearer JwtTrack
   | Backend BackendTrack
 
 -- | Track enough information to study potentially-malicious activities.
 data BehaviourTrack =
     Attempt LoginAttempt
-  | Result LoginResult
   | Verification Bool
   | OptionalVerification Bool
+
+data JwtTrack =
+    Extracted (Maybe (JWT VerifiedJWT))
   | Allowed (Maybe Bool)
-  | Register RegistrationRequest
-  | Recover RecoveryRequest
-  | Recovered RecoveryResult
 
 -- | Track backend sql information.
 data BackendTrack =

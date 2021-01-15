@@ -12,11 +12,13 @@ module Prod.UserAuth.Runtime
     tokenValidityDuration,
     trace,
     traceTransaction,
+    traceAttempt,
     traceVerification,
     traceOptionalVerification,
     traceAllowed,
     traceDisallowed,
     traceLimited,
+    traceJWT,
   )
 where
 
@@ -24,10 +26,11 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Database.PostgreSQL.Simple (Connection, Only (..), close, connectPostgreSQL, execute, query, rollback, withTransaction)
-import Prod.UserAuth.Base (Minutes)
+import Prod.UserAuth.Base (Minutes, LoginAttempt)
 import Prod.UserAuth.Counters (Counters (..), initCounters)
-import Prod.UserAuth.Trace (Track(..), BackendTrack(..), BehaviourTrack(..))
+import Prod.UserAuth.Trace (Track(..), BackendTrack(..), BehaviourTrack(..), JwtTrack(..))
 import Prod.Tracer (Tracer(..))
+import Web.JWT
 
 data Runtime
   = Runtime
@@ -62,6 +65,10 @@ traceTransaction runtime conn act =
     trace runtime (Backend SQLTransaction)
     act
 
+traceAttempt :: MonadIO m => Runtime -> LoginAttempt -> m ()
+traceAttempt runtime l =
+  liftIO $ trace runtime $ Behaviour $ Attempt l
+
 traceVerification :: MonadIO m => Runtime -> Bool -> m ()
 traceVerification runtime bool =
   liftIO $ trace runtime $ Behaviour $ Verification bool
@@ -72,11 +79,15 @@ traceOptionalVerification runtime bool =
 
 traceAllowed,traceDisallowed,traceLimited :: MonadIO m => Runtime -> m ()
 traceAllowed runtime =
-  liftIO $ trace runtime $ Behaviour $ Allowed (Just True)
+  liftIO $ trace runtime $ Bearer $ Allowed (Just True)
 traceDisallowed runtime =
-  liftIO $ trace runtime $ Behaviour $ Allowed (Just False)
+  liftIO $ trace runtime $ Bearer $ Allowed (Just False)
 traceLimited runtime =
-  liftIO $ trace runtime $ Behaviour $ Allowed Nothing
+  liftIO $ trace runtime $ Bearer $ Allowed Nothing
+
+traceJWT :: MonadIO m => Runtime -> Maybe (JWT (VerifiedJWT)) -> m ()
+traceJWT runtime jwt =
+  liftIO $ trace runtime $ Bearer $ Extracted jwt
 
 tokenValidityDuration :: Minutes
 tokenValidityDuration = 30

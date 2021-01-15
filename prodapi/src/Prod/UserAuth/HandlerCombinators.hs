@@ -29,6 +29,7 @@ authHandler runtime = mkAuthHandler go
       let mCookies = fmap parseCookies $ lookup "cookie" $ requestHeaders req
       let jwtblob = fmap decodeLatin1 $ lookup "login-jwt" =<< mCookies
       let mJwt = decodeAndVerifySignature (hmacSecret $ secretstring runtime) =<< jwtblob
+      traceJWT runtime mJwt
       pure $ UserAuthInfo mJwt
 
 authServerContext :: Runtime -> Context (AuthHandler Request UserAuthInfo ': '[])

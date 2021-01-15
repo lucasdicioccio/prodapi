@@ -95,15 +95,12 @@ logUserAuth :: Tracer IO Auth.Track
 logUserAuth = Tracer f
   where
     f (Auth.Behaviour (Auth.Attempt _)) = print "ua: attempt"
-    f (Auth.Behaviour (Auth.Result _)) = print "ua: result"
-    f (Auth.Behaviour (Auth.Verification _)) = print "ua: verif"
-    f (Auth.Behaviour (Auth.OptionalVerification _)) = print "ua: opt-verif"
-    f (Auth.Behaviour (Auth.Allowed Nothing)) = print "ua: jwt-limited"
-    f (Auth.Behaviour (Auth.Allowed (Just True))) = print "ua: jwt-allow"
-    f (Auth.Behaviour (Auth.Allowed (Just False))) = print "ua: jwt-disallow"
-    f (Auth.Behaviour (Auth.Register _)) = print "ua: register"
-    f (Auth.Behaviour (Auth.Recover _)) = print "ua: recover"
-    f (Auth.Behaviour (Auth.Recovered _)) = print "ua: recovered"
+    f (Auth.Behaviour (Auth.Verification t)) = print $ "ua: verif: " <> show t
+    f (Auth.Behaviour (Auth.OptionalVerification t)) = print $ "ua: opt-verif: " <> show t
+    f (Auth.Bearer (Auth.Allowed Nothing)) = print "ua: jwt-limited"
+    f (Auth.Bearer (Auth.Allowed (Just True))) = print "ua: jwt-allow"
+    f (Auth.Bearer (Auth.Allowed (Just False))) = print "ua: jwt-disallow"
+    f (Auth.Bearer (Auth.Extracted jwt)) = print $ "ua: jwt:" <> show jwt
     f (Auth.Backend Auth.SQLConnect) = print "ua: sql conn"
     f (Auth.Backend Auth.SQLTransaction) = print "ua: sql tx"
     f (Auth.Backend Auth.SQLRollback) = print "ua: sql tx"
