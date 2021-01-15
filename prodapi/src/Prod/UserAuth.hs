@@ -18,7 +18,11 @@ module Prod.UserAuth
     authorized,
     limited,
     --
-    renderStatus
+    renderStatus,
+    --
+    Track(..),
+    BehaviourTrack(..),
+    BackendTrack(..),
   )
 where
 
@@ -33,6 +37,7 @@ import Prod.UserAuth.Base
 import Prod.UserAuth.HandlerCombinators
 import Prod.UserAuth.JWT
 import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, secretstring, tokenValidityDuration, withConn)
+import Prod.UserAuth.Trace
 import qualified Prometheus as Prometheus
 import Servant
 import Servant.Server

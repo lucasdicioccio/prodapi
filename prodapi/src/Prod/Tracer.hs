@@ -4,7 +4,7 @@ module Prod.Tracer where
 
 import Data.Functor.Contravariant
 
-newtype Tracer m a = Tracer { trace :: (a -> m ()) }
+newtype Tracer m a = Tracer { runTracer :: (a -> m ()) }
 
 instance Contravariant (Tracer m) where
   contramap f (Tracer g) = Tracer (g . f)

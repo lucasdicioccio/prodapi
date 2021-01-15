@@ -8,6 +8,7 @@ module Prod.UserAuth.HandlerCombinators
   )
 where
 
+import Data.Maybe (isJust)
 import Data.Text.Encoding (decodeLatin1)
 import Network.Wai (Request, requestHeaders)
 import Prod.UserAuth.Base
@@ -39,11 +40,15 @@ withLoginCookieVerified ::
   Maybe LoggedInCookie ->
   (JWT VerifiedJWT -> Handler a) ->
   Handler a
-withLoginCookieVerified _ Nothing _ =
+withLoginCookieVerified runtime Nothing _ = do
+  traceVerification runtime False
   throwError $ err403 {errBody = "Sorry, need some cookies."}
 withLoginCookieVerified runtime cookie act = do
   withOptionalLoginCookieVerified runtime cookie $ \mJwt ->
-    maybe (throwError err403) act mJwt
+    maybe
+      (traceVerification runtime False >> throwError err403)
+      (\x -> traceVerification runtime True >> act x)
+      mJwt
 
 withOptionalLoginCookieVerified ::
   Runtime ->
@@ -52,12 +57,13 @@ withOptionalLoginCookieVerified ::
   Handler a
 withOptionalLoginCookieVerified runtime cookie act = do
   let mJwt = decodeAndVerifySignature (hmacSecret $ secretstring runtime) =<< fmap encodedJwt cookie
+  traceOptionalVerification runtime (isJust mJwt)
   act mJwt
 
-authorized :: UserAuthInfo -> (UserId -> Handler a) -> Handler a
-authorized auth act =
-  limited auth (throwError err401) act
+authorized :: Runtime -> UserAuthInfo -> (UserId -> Handler a) -> Handler a
+authorized rt auth act =
+  limited rt auth (traceDisallowed rt >> throwError err401) act
 
-limited :: UserAuthInfo -> (Handler a) -> (UserId -> Handler a) -> Handler a
-limited auth fallback act =
-  maybe fallback act (authUserId auth)
+limited :: Runtime -> UserAuthInfo -> (Handler a) -> (UserId -> Handler a) -> Handler a
+limited rt auth fallback act =
+  maybe (traceLimited rt >> fallback) (\uid -> traceAllowed rt >> act uid) (authUserId auth)

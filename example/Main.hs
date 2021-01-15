@@ -20,6 +20,7 @@ import Prod.Status (statusPage, metricsSection, versionsSection)
 import Prod.Health as Health
 import qualified Prod.UserAuth as Auth
 import qualified Prod.Discovery as Discovery
+import Prod.Tracer (Tracer(..))
 
 import qualified Hello
 import qualified Monitors
@@ -90,14 +91,32 @@ hasFoundHostsReadiness = fmap adapt . Hello.readDiscoveredHosts
     adapt [] = Ill $ Set.fromList [Reason "no hosts found"]
     adapt _  = Ready
 
+logUserAuth :: Tracer IO Auth.Track
+logUserAuth = Tracer f
+  where
+    f (Auth.Behaviour (Auth.Attempt _)) = print "ua: attempt"
+    f (Auth.Behaviour (Auth.Result _)) = print "ua: result"
+    f (Auth.Behaviour (Auth.Verification _)) = print "ua: verif"
+    f (Auth.Behaviour (Auth.OptionalVerification _)) = print "ua: opt-verif"
+    f (Auth.Behaviour (Auth.Allowed Nothing)) = print "ua: jwt-limited"
+    f (Auth.Behaviour (Auth.Allowed (Just True))) = print "ua: jwt-allow"
+    f (Auth.Behaviour (Auth.Allowed (Just False))) = print "ua: jwt-disallow"
+    f (Auth.Behaviour (Auth.Register _)) = print "ua: register"
+    f (Auth.Behaviour (Auth.Recover _)) = print "ua: recover"
+    f (Auth.Behaviour (Auth.Recovered _)) = print "ua: recovered"
+    f (Auth.Backend Auth.SQLConnect) = print "ua: sql conn"
+    f (Auth.Backend Auth.SQLTransaction) = print "ua: sql tx"
+    f (Auth.Backend Auth.SQLRollback) = print "ua: sql tx"
+    f (Auth.Backend (Auth.SQLQuery bs)) = print $ "ua: sql query" <> bs
+
 main :: IO ()
 main = do
   helloRt <- Hello.initRuntime
-  monitorsRt <- Monitors.initRuntime
+  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" (logUserAuth)
+  monitorsRt <- Monitors.initRuntime authRt
 
   healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime
   init <- initialize healthRt
-  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example"
   Warp.run
     8000
     $ RequestLogger.logStdoutDev

@@ -4,18 +4,20 @@
 
 module Prod.UserAuth.Backend where
 
+import Control.Monad ((<=<))
 import Data.Int (Int64)
 import Data.Text (Text)
-import Database.PostgreSQL.Simple (Connection, Only (..), execute, query, rollback, withTransaction)
+import Database.PostgreSQL.Simple (Connection, Only (..), execute, query, rollback, formatQuery)
 import Database.PostgreSQL.Simple.SqlQQ (sql)
 import Prod.UserAuth.Base
-import Prod.UserAuth.Runtime (Runtime, tokenValidityDuration, withConn)
+import Prod.UserAuth.Runtime (Runtime, tokenValidityDuration, withConn, traceTransaction, trace)
+import Prod.UserAuth.Trace
 
 registerIO :: Runtime -> RegistrationRequest -> IO RegistrationResult
-registerIO runtime req = do
-  withConn runtime $ \conn -> do
-    withTransaction conn $ do
-      newU <- newuser conn
+registerIO rt req = do
+  withConn rt $ \conn -> do
+    traceTransaction rt conn $ do
+      newU <- newuser rt conn
       case newU of
         [Only uid] -> do
           nres <- newpass conn =<< mkNewPass uid
@@ -32,8 +34,10 @@ registerIO runtime req = do
 
 type User = Only UserId
 
-newuser :: Connection -> IO [User]
-newuser conn = query conn q ()
+newuser :: Runtime -> Connection -> IO [User]
+newuser rt conn = do
+    trace rt . Backend . SQLQuery =<< formatQuery conn q ()
+    query conn q ()
   where
     q =
       [sql|
@@ -44,8 +48,10 @@ newuser conn = query conn q ()
 
 type Email = Text
 
-finduser :: Connection -> Email -> IO [User]
-finduser conn email = query conn q (Only email)
+finduser :: Runtime -> Connection -> Email -> IO [User]
+finduser rt conn email = do
+    trace rt . Backend . SQLQuery =<< formatQuery conn q (Only email)
+    query conn q (Only email)
   where
     q =
       [sql|
@@ -55,8 +61,10 @@ finduser conn email = query conn q (Only email)
         AND enabled
     |]
 
-finduidMail :: Connection -> UserId -> IO [Only Email]
-finduidMail conn uid = query conn q (Only uid)
+finduidMail :: Runtime -> Connection -> UserId -> IO [Only Email]
+finduidMail rt conn uid = do
+   trace rt . Backend . SQLQuery =<< formatQuery conn q (Only uid)
+   query conn q (Only uid)
   where
     q =
       [sql|
@@ -105,10 +113,12 @@ resetpass conn pass = execute conn q (plainV, uidV, emailV)
       |]
 
 loginIO :: Runtime -> LoginAttempt -> IO LoginResult
-loginIO runtime attempt = withConn runtime (\conn -> login conn attempt)
+loginIO rt attempt = withConn rt (\conn -> login rt conn attempt)
 
-login :: Connection -> LoginAttempt -> IO LoginResult
-login conn attempt = toResult <$> query conn q (plainV, emailV)
+login :: Runtime -> Connection -> LoginAttempt -> IO LoginResult
+login rt conn attempt = do
+    trace rt . Backend . SQLQuery =<< formatQuery conn q (plainV, emailV)
+    toResult <$> query conn q (plainV, emailV)
   where
     toResult :: [(UserId, Bool)] -> LoginResult
     toResult [(uid, True)] = LoginSuccess (SessionData uid)
@@ -181,18 +191,18 @@ invalidaterecovery conn check = execute conn q (Only uidV)
       |]
 
 whoAmIQueryIO :: Runtime -> UserId -> IO [WhoAmI]
-whoAmIQueryIO runtime uid = do
-  withConn runtime $ \conn -> do
-    fmap unwrapmail <$> finduidMail conn uid
+whoAmIQueryIO rt uid = do
+  withConn rt $ \conn -> do
+    fmap unwrapmail <$> finduidMail rt conn uid
   where
     unwrapmail :: Only Email -> WhoAmI
     unwrapmail (Only pass) = WhoAmI pass
 
 recoveryRequestIO :: Runtime -> RecoveryRequest -> IO [Token]
-recoveryRequestIO runtime req = do
-  withConn runtime $ \conn -> do
-    withTransaction conn $ do
-      newU <- finduser conn emailV
+recoveryRequestIO rt req = do
+  withConn rt $ \conn -> do
+    traceTransaction rt conn $ do
+      newU <- finduser rt conn emailV
       case newU of
         [Only uid] -> newrecovery conn (NewRecovery uid)
         _ -> pure []
@@ -201,10 +211,10 @@ recoveryRequestIO runtime req = do
     emailV = email (req :: RecoveryRequest)
 
 applyRecoveryIO :: Runtime -> ApplyRecoveryRequest -> IO RecoveryResult
-applyRecoveryIO runtime req = do
-  withConn runtime $ \conn -> do
-    withTransaction conn $ do
-      newU <- finduser conn emailV
+applyRecoveryIO rt req = do
+  withConn rt $ \conn -> do
+    traceTransaction rt conn $ do
+      newU <- finduser rt conn emailV
       case newU of
         [Only uid] -> do
           recovery <- mkCheckRecovery uid

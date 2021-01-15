@@ -14,6 +14,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
 import GHC.Generics (Generic)
 import Prod.Background
+import qualified Prod.UserAuth as Auth
 import Data.IORef (IORef, newIORef, readIORef)
 import Servant.API (FromHttpApiData)
 
@@ -42,10 +43,11 @@ type DeRegistration = Int
 data Runtime = Runtime {
     pings :: IORef [(Registration, BackgroundVal (Maybe CommandOutput))]
   , counters :: Counters
+  , authRt :: Auth.Runtime
   }
 
-initRuntime :: IO Runtime
-initRuntime = Runtime <$> newIORef [] <*> newCounters
+initRuntime :: Auth.Runtime -> IO Runtime
+initRuntime authRt = Runtime <$> newIORef [] <*> newCounters <*> pure authRt
 
 readRegistrations :: Runtime -> IO [Registration]
 readRegistrations = fmap (fmap fst) . readIORef . pings
