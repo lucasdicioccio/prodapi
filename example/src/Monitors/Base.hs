@@ -43,6 +43,7 @@ newtype Registration = Registration { registration :: Text }
 type DeRegistration = Int
 
 data Track = BackgroundPing PingTarget Prod.Background.Track
+  | PingVal PingTarget ByteString
   | Registered Registration
   deriving (Show)
 
@@ -106,6 +107,7 @@ backgroundPings counters tracer ping@(PingTarget tgt) =
       ret@(code,out,_) <- readCreateProcessWithExitCode cmd ""
       Prometheus.withLabel (executionEnded counters) ("ping", labelForExitCode code) Prometheus.incCounter
       let stdoutRows = length $ ByteString.lines out
+      runTracer tracer $ PingVal ping out
       Prometheus.withLabel (stdoutLines counters) "ping" $ \cnt -> void $ do
         Prometheus.addCounter cnt (fromIntegral stdoutRows)
       pure $ Just ret
