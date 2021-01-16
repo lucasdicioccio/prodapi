@@ -41,11 +41,14 @@ readCurrent (Discovery b) = readBackgroundVal b
 
 type Host = Text
 
-dnsA :: Tracer IO Track -> Host -> IO (Discovery [Host])
-dnsA tracer hostname = dig tracer "A" $ Text.unpack hostname
+data DNSTrack = DNSTrack Text Host Track
+  deriving (Show)
 
-dnsAAAA :: Tracer IO Track -> Host -> IO (Discovery [Host])
-dnsAAAA tracer hostname = dig tracer "AAAA" $ Text.unpack hostname
+dnsA :: Tracer IO DNSTrack -> Host -> IO (Discovery [Host])
+dnsA tracer hostname = dig (contramap (DNSTrack hostname "A") tracer) "A" $ Text.unpack hostname
+
+dnsAAAA :: Tracer IO DNSTrack -> Host -> IO (Discovery [Host])
+dnsAAAA tracer hostname = dig (contramap (DNSTrack hostname "AAAA") tracer) "AAAA" $ Text.unpack hostname
 
 dig :: Tracer IO Track -> String -> String -> IO (Discovery [Host])
 dig tracer typ target = cmdOut tracer "dig" ["+short",typ,target] "" tenSecs [] replaceHosts trigger

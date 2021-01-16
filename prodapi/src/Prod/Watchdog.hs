@@ -60,19 +60,22 @@ basicLabel res = case res of
   Failed    -> "failed"
   Skipped   -> "skipped"
 
+data FileTouchTrack = FileTouchTrack FilePath Track
+  deriving (Show)
+
 -- | Touches a file periodically, using setModificationTime.
 -- If the file does not exists when the watchdog is initialized, then it is
 -- created empty.
 fileTouchWatchdog
   :: FilePath
-  -> Tracer IO Track
+  -> Tracer IO FileTouchTrack
   -> MicroSeconds Int
   -> IO (Watchdog UTCTime)
 fileTouchWatchdog path tracer delay = do
     let mkLabel res = (basicLabel res, Text.pack path)
     shouldCreate <- not <$> doesFileExist path
     when shouldCreate $ writeFile path ""
-    watchdog fileTouchWatchdogCounter tracer mkLabel delay io
+    watchdog fileTouchWatchdogCounter (contramap (FileTouchTrack path) tracer) mkLabel delay io
   where
     handleIOException :: IOException -> IO (WatchdogResult UTCTime)
     handleIOException _ = pure $ Failed

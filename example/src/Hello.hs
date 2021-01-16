@@ -24,7 +24,7 @@ import Prod.Tracer
 type Api = "hello-world" :> Get '[JSON] Text
 
 data Track = WatchdogTrack (Prod.Watchdog.Track)
-  | DiscoveryTrack (Prod.Discovery.Track)
+  | DiscoveryTrack (Prod.Discovery.DNSTrack)
   deriving (Show)
 
 type T = Tracer IO Track
