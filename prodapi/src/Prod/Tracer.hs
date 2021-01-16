@@ -1,26 +1,55 @@
 -- https://www.youtube.com/watch?v=qzOQOmmkKEM&feature=emb_logo
 
-module Prod.Tracer (Tracer(..), Contravariant(..), silent, traceIf, traceBoth) where
+module Prod.Tracer (Tracer(..), Contravariant(..), Divisible(..), silent, traceIf, traceBoth) where
 
 import Data.Functor.Contravariant
+import Data.Functor.Contravariant.Divisible
 
 newtype Tracer m a = Tracer { runTracer :: (a -> m ()) }
 
 instance Contravariant (Tracer m) where
   contramap f (Tracer g) = Tracer (g . f)
 
+instance Applicative m => Divisible (Tracer m) where
+  conquer = silent
+  divide = traceSplit
+
+instance Applicative m => Decidable (Tracer m) where
+  lose _ = silent
+  choose = tracePick
+
 -- | Disable Tracing.
 {-# INLINE silent #-}
 silent :: (Applicative m) => Tracer m a
 silent = Tracer (const $ pure ())
 
--- | Filter by dynamically testing values.
-{-# INLINEABLE traceIf #-}
-traceIf :: (Applicative m) => (a -> Bool) -> Tracer m a -> Tracer m a
-traceIf predicate (Tracer f) = Tracer (\a -> if predicate a then f a else pure ())
+-- | Splits a tracer into two chunks that are run sequentially.
+--
+-- This name can be confusing but it has to be thought backwards for Contravariant logging:
+-- We compose a target tracer from two tracers but we split the content of the trace.
+--
+-- Note that the split function may actually duplicate inputs (that's how traceBoth works).
+{-# INLINEABLE traceSplit #-}
+traceSplit :: (Applicative m) => (c -> (a,b)) -> Tracer m a -> Tracer m b -> Tracer m c
+traceSplit split (Tracer f1) (Tracer f2) = Tracer (go . split)
+    where
+      go (b,c) = f1 b *> f2 c
 
 -- | If you are given two tracers and want to pass both.
 -- Composition occurs in sequence.
 {-# INLINEABLE traceBoth #-}
 traceBoth :: (Applicative m) => Tracer m a -> Tracer m a -> Tracer m a
-traceBoth (Tracer f1) (Tracer f2) = Tracer (\a -> f1 a *> f2 a)
+traceBoth t1 t2 = traceSplit (\x -> (x,x)) t1 t2
+
+-- | Picks a tracer based on the emitted object.
+-- Example logic that can be built is traceIf that silent messages.
+{-# INLINEABLE tracePick #-}
+tracePick :: (Applicative m) => (c -> Either a b) -> Tracer m a -> Tracer m b -> Tracer m c
+tracePick split (Tracer f1) (Tracer f2) = Tracer $ \a ->
+  let e = split a
+  in either f1 f2 e
+
+-- | Filter by dynamically testing values.
+{-# INLINEABLE traceIf #-}
+traceIf :: (Applicative m) => (a -> Bool) -> Tracer m a -> Tracer m a
+traceIf predicate t = tracePick (\x -> if predicate x then Left () else Right x) silent t
