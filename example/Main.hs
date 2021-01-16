@@ -112,11 +112,21 @@ logHealth = Tracer f
     f (Health.Afflict cs r) = print $ "health: afflict " <> show r <> " from: " <> show cs
     f (Health.Cure _ r) = print $ "health: cure " <> show r
 
+logHello :: Tracer IO Hello.Track
+logHello = Tracer f
+  where
+    f = print
+
+logMonitors :: Tracer IO Monitors.Track
+logMonitors = Tracer f
+  where
+    f = print
+
 main :: IO ()
 main = do
-  helloRt <- Hello.initRuntime
+  helloRt <- Hello.initRuntime logHello
   authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" (logUserAuth)
-  monitorsRt <- Monitors.initRuntime authRt
+  monitorsRt <- Monitors.initRuntime logMonitors authRt
 
   healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime logHealth
   init <- initialize healthRt

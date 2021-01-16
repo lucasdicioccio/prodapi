@@ -17,7 +17,7 @@ handle rt = addPing rt :<|> readPing rt :<|> removePing rt :<|> removePing rt
 
 addPing :: Runtime -> UserAuthInfo -> PingTarget -> Handler Registration
 addPing rt auth tgt@(PingTarget target) = authorized (authRt rt) auth $ \id -> liftIO $ do
-  bkg <- backgroundPings (counters rt) tgt
+  bkg <- backgroundPings (counters rt) (tracer rt) tgt
   let reg = Registration target
   _ <- atomicModifyIORef' (pings rt) (\xs -> ((reg, bkg) : xs, ()))
   pure $ reg

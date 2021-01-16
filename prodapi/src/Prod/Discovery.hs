@@ -21,6 +21,7 @@ import System.Process.ByteString (readProcessWithExitCode)
 import Prod.Tracer (Tracer(..), contramap)
 
 data Track = BackgroundTrack Prod.Background.Track
+  deriving (Show)
 
 data Result a
   = NotAsked

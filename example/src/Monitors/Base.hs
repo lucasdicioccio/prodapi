@@ -13,7 +13,9 @@ import qualified Data.Text.Encoding as Text
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
 import GHC.Generics (Generic)
-import Prod.Background
+import Prod.Background (BackgroundVal, backgroundLoop)
+import qualified Prod.Background
+import Prod.Tracer
 import qualified Prod.UserAuth as Auth
 import Data.IORef (IORef, newIORef, readIORef)
 import Servant.API (FromHttpApiData)
@@ -40,14 +42,24 @@ newtype Registration = Registration { registration :: Text }
 
 type DeRegistration = Int
 
+data Track = BackgroundPing PingTarget Prod.Background.Track
+  deriving (Show)
+
+type T = Tracer IO Track
+
 data Runtime = Runtime {
     pings :: IORef [(Registration, BackgroundVal (Maybe CommandOutput))]
   , counters :: Counters
+  , tracer :: T
   , authRt :: Auth.Runtime
   }
 
-initRuntime :: Auth.Runtime -> IO Runtime
-initRuntime authRt = Runtime <$> newIORef [] <*> newCounters <*> pure authRt
+initRuntime :: T -> Auth.Runtime -> IO Runtime
+initRuntime tracer authRt = Runtime
+  <$> newIORef []
+  <*> newCounters
+  <*> pure tracer
+  <*> pure authRt
 
 readRegistrations :: Runtime -> IO [Registration]
 readRegistrations = fmap (fmap fst) . readIORef . pings
@@ -68,10 +80,12 @@ outputToStatus (code, out, err) =
 
 backgroundPings
   :: Counters
+  -> T
   -> PingTarget
   -> IO (BackgroundVal (Maybe CommandOutput))
-backgroundPings counters (PingTarget tgt) =
+backgroundPings counters tracer ping@(PingTarget tgt) =
   backgroundLoop
+    (contramap (BackgroundPing ping) tracer)
     Nothing
     go
     1000000

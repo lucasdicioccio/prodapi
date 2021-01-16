@@ -14,6 +14,7 @@ import Control.Exception.Base (IOException, catch)
 import System.Directory (setModificationTime, doesFileExist)
 
 data Track = BackgroundTrack Prod.Background.Track
+  deriving (Show)
 
 data WatchdogResult a
   = Skipped

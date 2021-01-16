@@ -26,6 +26,7 @@ data Track =
   | RunStart
   | RunDone
   | Kill CallStack
+  deriving (Show)
 
 -- | A value that is coupled to an async in charge of updating the value.
 data BackgroundVal a
