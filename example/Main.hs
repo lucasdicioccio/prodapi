@@ -20,7 +20,7 @@ import Prod.Status (statusPage, metricsSection, versionsSection)
 import Prod.Health as Health
 import qualified Prod.UserAuth as Auth
 import qualified Prod.Discovery as Discovery
-import Prod.Tracer (Tracer(..))
+import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPut, encodeJSON)
 
 import qualified Hello
 import qualified Monitors
@@ -30,6 +30,7 @@ import Data.Foldable (traverse_)
 import GHC.Generics (Generic)
 import Lucid (HtmlT, ToHtml(..), h4_, div_, p_, ul_, li_, a_, href_, with, form_, id_, action_, method_, label_, for_, type_, input_, name_, value_)
 
+import System.IO (stdout)
 import qualified Paths_prodapi
 
 type FullApi = Hello.Api
@@ -91,6 +92,9 @@ hasFoundHostsReadiness = fmap adapt . Hello.readDiscoveredHosts
     adapt [] = Ill $ Set.fromList [Reason "no hosts found"]
     adapt _  = Ready
 
+logPrint :: Show a => Tracer IO a
+logPrint = Tracer print
+
 logUserAuth :: Tracer IO Auth.Track
 logUserAuth = Tracer f
   where
@@ -112,19 +116,15 @@ logHealth = Tracer f
     f (Health.Afflict cs r) = print $ "health: afflict " <> show r <> " from: " <> show cs
     f (Health.Cure _ r) = print $ "health: cure " <> show r
 
-logHello :: Tracer IO Hello.Track
-logHello = Tracer f
-  where
-    f = print
-
 logMonitors :: Tracer IO Monitors.Track
-logMonitors = Tracer f
+logMonitors = choose f (encodeJSON $ traceHPut stdout) tracePrint
   where
-    f = print
+    f (Monitors.Registered r) = Left r
+    f v                       = Right v
 
 main :: IO ()
 main = do
-  helloRt <- Hello.initRuntime logHello
+  helloRt <- Hello.initRuntime logPrint
   authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" (logUserAuth)
   monitorsRt <- Monitors.initRuntime logMonitors authRt
 

@@ -43,6 +43,7 @@ newtype Registration = Registration { registration :: Text }
 type DeRegistration = Int
 
 data Track = BackgroundPing PingTarget Prod.Background.Track
+  | Registered Registration
   deriving (Show)
 
 type T = Tracer IO Track
@@ -53,6 +54,9 @@ data Runtime = Runtime {
   , tracer :: T
   , authRt :: Auth.Runtime
   }
+
+logRegistered :: Runtime -> Registration -> IO ()
+logRegistered rt = runTracer (tracer rt) . Registered
 
 initRuntime :: T -> Auth.Runtime -> IO Runtime
 initRuntime tracer authRt = Runtime

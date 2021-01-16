@@ -1,9 +1,27 @@
 -- https://www.youtube.com/watch?v=qzOQOmmkKEM&feature=emb_logo
 
-module Prod.Tracer (Tracer(..), Contravariant(..), Divisible(..), silent, traceIf, traceBoth) where
+module Prod.Tracer (
+  Tracer(..),
+  silent,
+  traceIf,
+  traceBoth,
+  -- * common utilities
+  tracePrint,
+  traceHPrint,
+  traceHPut,
+  encodeJSON,
+  -- * re-exports
+  Contravariant(..),
+  Divisible(..),
+  Decidable(..),
+) where
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Aeson (ToJSON, encode)
+import Data.ByteString.Lazy (ByteString, hPut)
 import Data.Functor.Contravariant
 import Data.Functor.Contravariant.Divisible
+import System.IO (hPrint, Handle)
 
 newtype Tracer m a = Tracer { runTracer :: (a -> m ()) }
 
@@ -53,3 +71,20 @@ tracePick split (Tracer f1) (Tracer f2) = Tracer $ \a ->
 {-# INLINEABLE traceIf #-}
 traceIf :: (Applicative m) => (a -> Bool) -> Tracer m a -> Tracer m a
 traceIf predicate t = tracePick (\x -> if predicate x then Left () else Right x) silent t
+
+-- | A tracer that prints emitted events.
+tracePrint :: (MonadIO m, Show a) => Tracer m a
+tracePrint = Tracer (liftIO . print)
+
+-- | A tracer that prints emitted to some handle.
+traceHPrint :: (MonadIO m, Show a) => Handle -> Tracer m a
+traceHPrint handle = Tracer (liftIO . hPrint handle)
+
+-- | A tracer that puts some ByteString to some handle.
+traceHPut :: (MonadIO m) => Handle -> Tracer m ByteString
+traceHPut handle = Tracer (liftIO . hPut handle)
+
+-- | A conversion encoding values to JSON.
+{-# INLINE encodeJSON #-}
+encodeJSON :: (ToJSON a) => Tracer m ByteString -> Tracer m a
+encodeJSON = contramap encode

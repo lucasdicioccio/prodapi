@@ -20,6 +20,7 @@ addPing rt auth tgt@(PingTarget target) = authorized (authRt rt) auth $ \id -> l
   bkg <- backgroundPings (counters rt) (tracer rt) tgt
   let reg = Registration target
   _ <- atomicModifyIORef' (pings rt) (\xs -> ((reg, bkg) : xs, ()))
+  logRegistered rt reg
   pure $ reg
 
 readPing :: Runtime -> UserAuthInfo -> [Registration] -> Handler [Maybe CommandStatus]
