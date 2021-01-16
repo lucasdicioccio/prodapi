@@ -16,6 +16,7 @@ data BehaviourTrack =
   | Verification Bool
   | OptionalVerification Bool
 
+-- | Bearer tokens with JWT.
 data JwtTrack =
     Extracted (Maybe (JWT VerifiedJWT))
   | Allowed (Maybe Bool)

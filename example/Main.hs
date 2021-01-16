@@ -106,13 +106,19 @@ logUserAuth = Tracer f
     f (Auth.Backend Auth.SQLRollback) = print "ua: sql tx"
     f (Auth.Backend (Auth.SQLQuery bs)) = print $ "ua: sql query" <> bs
 
+logHealth :: Tracer IO Health.Track
+logHealth = Tracer f
+  where
+    f (Health.Afflict cs r) = print $ "health: afflict " <> show r <> " from: " <> show cs
+    f (Health.Cure _ r) = print $ "health: cure " <> show r
+
 main :: IO ()
 main = do
   helloRt <- Hello.initRuntime
   authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" (logUserAuth)
   monitorsRt <- Monitors.initRuntime authRt
 
-  healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime
+  healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime logHealth
   init <- initialize healthRt
   Warp.run
     8000
