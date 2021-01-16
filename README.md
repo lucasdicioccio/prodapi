@@ -30,6 +30,9 @@ modules:
 
 # Provided APIs and libraries
 
+## defining APIs with Servant
+- encourages the use of Servant to declare and implement handlers (offered components use Servant in a way or another)
+
 ## echo
 - enables to test round-trips
 
@@ -39,9 +42,13 @@ modules:
 ## status
 - identification, healthiness
 - helpful /status page
+- status-page is customizable forcing Lucid
 
 ## metrics
-- exposes counters over prometheus
+- exposes counters over Prometheus
+
+## logging
+- promotes the use of contravariant logging to avoid forcing an early choice on library users
 
 ## client-reporting
 - simple API for clients to dial-in some timestamped logs (e.g., session digests, errors)
@@ -58,9 +65,7 @@ modules:
 # TODO
 
 - split PostgreSQL and metrics to own packages
-- curation choices around logging
 - curation choices around argument-parsing
 - curation choices for code-generators
 - curation choices for leader-elections
 - scaffolder
-
