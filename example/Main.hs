@@ -16,11 +16,11 @@ import Data.Proxy (Proxy(..))
 import Servant
 import Servant.Server
 import Prod.App as Prod
-import Prod.Status (statusPage, metricsSection, versionsSection)
+import Prod.Status (statusPage, metricsSection, versionsSection, this)
 import Prod.Health as Health
 import qualified Prod.UserAuth as Auth
 import qualified Prod.Discovery as Discovery
-import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPut, encodeJSON)
+import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPut, encodeJSON, pulls)
 
 import qualified Hello
 import qualified Monitors
@@ -117,8 +117,9 @@ logHealth = Tracer f
     f (Health.Cure _ r) = print $ "health: cure " <> show r
 
 logMonitors :: Tracer IO Monitors.Track
-logMonitors = choose f (encodeJSON $ traceHPut stdout) tracePrint
+logMonitors = choose f (pulls wrapWithThis . encodeJSON $ traceHPut stdout) (tracePrint)
   where
+    wrapWithThis obj = pure (obj, this)
     f (Monitors.Registered r) = Left r
     f v                       = Right v
 

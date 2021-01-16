@@ -12,6 +12,7 @@ module Prod.Status
     versionsSection,
     statusPage,
     handleStatus,
+    this,
   )
 where
 

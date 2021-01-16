@@ -10,12 +10,14 @@ module Prod.Tracer (
   traceHPrint,
   traceHPut,
   encodeJSON,
+  pulls,
   -- * re-exports
   Contravariant(..),
   Divisible(..),
   Decidable(..),
 ) where
 
+import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (ToJSON, encode)
 import Data.ByteString.Lazy (ByteString, hPut)
@@ -88,3 +90,17 @@ traceHPut handle = Tracer (liftIO . hPut handle)
 {-# INLINE encodeJSON #-}
 encodeJSON :: (ToJSON a) => Tracer m ByteString -> Tracer m a
 encodeJSON = contramap encode
+
+-- | Pulls a value to complete a trace when a trace occurs.
+--
+-- This function allows to combines pushed values with pulled values.  Hence,
+-- performing some scheduling between behaviours.
+-- Typical usage would be to annotate a trace with a background value, or perform
+-- data augmentation in a pipelines of traces.
+--
+-- Note that if you rely on this function you need to pay attention of the
+-- blocking effect of 'pulls': the traced value c is not forwarded until a
+-- value b is available.
+{-# INLINE pulls #-}
+pulls :: Monad m => (c -> m b) -> Tracer m b -> Tracer m c
+pulls act (Tracer f1) = Tracer $ act >=> f1
