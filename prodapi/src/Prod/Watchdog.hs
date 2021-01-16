@@ -4,12 +4,16 @@ module Prod.Watchdog where
 import Control.Monad (when)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Prod.Background
+import Prod.Background (MicroSeconds, backgroundLoop, BackgroundVal)
+import qualified Prod.Background
+import Prod.Tracer (Tracer(..), contramap)
 import Prometheus (Vector, Label1, Label2, Counter)
 import qualified Prometheus as Prometheus
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Control.Exception.Base (IOException, catch)
 import System.Directory (setModificationTime, doesFileExist)
+
+data Track = BackgroundTrack Prod.Background.Track
 
 data WatchdogResult a
   = Skipped
@@ -19,17 +23,19 @@ data WatchdogResult a
 
 data Watchdog a = Watchdog {
     backgroundVal :: BackgroundVal (WatchdogResult a)
+  , tracer :: Tracer IO Track
   }
 
 watchdog
   :: (Prometheus.Label label)
   => Vector label Counter
+  -> Tracer IO Track
   -> (WatchdogResult a -> label)
   -> MicroSeconds Int
   -> IO (WatchdogResult a)
   -> IO (Watchdog a)
-watchdog counters mkLabel delay action =
-    Watchdog <$> backgroundLoop Skipped go delay
+watchdog counters tracer mkLabel delay action =
+    Watchdog <$> backgroundLoop (contramap BackgroundTrack tracer) Skipped go delay <*> pure tracer
   where
     go = do
       res <- action
@@ -40,11 +46,12 @@ watchdog counters mkLabel delay action =
 -- The input vector label is set with success|failed|skipped depending on the WatchdogResult.
 basicWatchdog
   :: Vector Label1 Counter
+  -> Tracer IO Track
   -> MicroSeconds Int
   -> IO (WatchdogResult a)
   -> IO (Watchdog a)
-basicWatchdog counters delay action =
-    watchdog counters basicLabel delay action
+basicWatchdog counters tracer delay action =
+    watchdog counters tracer basicLabel delay action
 
 basicLabel :: WatchdogResult a -> Label1
 basicLabel res = case res of
@@ -57,13 +64,14 @@ basicLabel res = case res of
 -- created empty.
 fileTouchWatchdog
   :: FilePath
+  -> Tracer IO Track
   -> MicroSeconds Int
   -> IO (Watchdog UTCTime)
-fileTouchWatchdog path delay = do
+fileTouchWatchdog path tracer delay = do
     let mkLabel res = (basicLabel res, Text.pack path)
     shouldCreate <- not <$> doesFileExist path
     when shouldCreate $ writeFile path ""
-    watchdog fileTouchWatchdogCounter mkLabel delay io
+    watchdog fileTouchWatchdogCounter tracer mkLabel delay io
   where
     handleIOException :: IOException -> IO (WatchdogResult UTCTime)
     handleIOException _ = pure $ Failed

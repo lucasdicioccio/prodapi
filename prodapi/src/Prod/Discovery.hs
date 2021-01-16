@@ -16,7 +16,11 @@ import qualified Data.Text.Encoding as Text
 import Prometheus (Vector, Label3, Gauge, Counter)
 import qualified Prometheus as Prometheus
 import Prod.Background (BackgroundVal, background, MicroSeconds, readBackgroundVal)
+import qualified Prod.Background
 import System.Process.ByteString (readProcessWithExitCode)
+import Prod.Tracer (Tracer(..), contramap)
+
+data Track = BackgroundTrack Prod.Background.Track
 
 data Result a
   = NotAsked
@@ -36,14 +40,14 @@ readCurrent (Discovery b) = readBackgroundVal b
 
 type Host = Text
 
-dnsA :: Host -> IO (Discovery [Host])
-dnsA hostname = dig "A" $ Text.unpack hostname
+dnsA :: Tracer IO Track -> Host -> IO (Discovery [Host])
+dnsA tracer hostname = dig tracer "A" $ Text.unpack hostname
 
-dnsAAAA :: Host -> IO (Discovery [Host])
-dnsAAAA hostname = dig "AAAA" $ Text.unpack hostname
+dnsAAAA :: Tracer IO Track -> Host -> IO (Discovery [Host])
+dnsAAAA tracer hostname = dig tracer "AAAA" $ Text.unpack hostname
 
-dig :: String -> String -> IO (Discovery [Host])
-dig typ target = cmdOut "dig" ["+short",typ,target] "" tenSecs [] replaceHosts trigger
+dig :: Tracer IO Track -> String -> String -> IO (Discovery [Host])
+dig tracer typ target = cmdOut tracer "dig" ["+short",typ,target] "" tenSecs [] replaceHosts trigger
   where
     replaceHosts :: [Host] -> ByteString -> [Host]
     replaceHosts _ = parseHosts
@@ -83,7 +87,9 @@ dnsDiscoveryCounter =
     $ Prometheus.counter (Prometheus.Info "prodapi_dns_discoveries" "")
 
 cmdOut
-  :: forall a.  String -- program to run
+  :: forall a. 
+     Tracer IO Track
+  -> String -- program to run
   -> [String] -- arguments to the program to run
   -> ByteString -- input submitted to the program
   -> Maybe (MicroSeconds Int) -- delay between invocations
@@ -91,8 +97,8 @@ cmdOut
   -> (a -> ByteString -> a)
   -> (a -> a -> IO ())
   -> IO (Discovery a)
-cmdOut cmd args input ms st0 update trigger =
-    Discovery <$> background st0 NotAsked run
+cmdOut tracer cmd args input ms st0 update trigger =
+    Discovery <$> background (contramap BackgroundTrack tracer) st0 NotAsked run
   where
     run :: a -> IO (Result a, a)
     run st0 = do

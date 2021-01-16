@@ -1,6 +1,6 @@
 -- https://www.youtube.com/watch?v=qzOQOmmkKEM&feature=emb_logo
 
-module Prod.Tracer where
+module Prod.Tracer (Tracer(..), Contravariant(..)) where
 
 import Data.Functor.Contravariant
 
