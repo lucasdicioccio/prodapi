@@ -32,12 +32,15 @@ modules:
 
 ## defining APIs with Servant
 - encourages the use of Servant to declare and implement handlers (offered components use Servant in a way or another)
+- servant offers a number of generators, the `prodapi-gen` package will offer generators for common cases (deriving orphan instances locally to the package if needed)
 
 ## echo
 - enables to test round-trips
+- see [gen/docs/docs-echo.md](gen/docs/docs-echo.md)
 
 ## health-checking
 - normalizes whether an application is up or not
+- see [gen/docs/docs-health.md](gen/docs/docs-health.md)
 
 ## status
 - identification, healthiness
@@ -64,7 +67,6 @@ modules:
 
 # TODO
 
-- curation choices for code-generators
 - curation choices for leader-elections
 - curation choices around argument-parsing
 - scaffolder
