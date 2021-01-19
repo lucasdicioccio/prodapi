@@ -46,6 +46,7 @@ modules:
 - identification, healthiness
 - helpful /status page
 - status-page is customizable forcing Lucid
+- see [gen/docs/docs-status.md](gen/docs/docs-status.md)
 
 ## metrics
 - exposes counters over Prometheus
