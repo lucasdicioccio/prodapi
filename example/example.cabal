@@ -23,6 +23,7 @@ executable example
   -- other-extensions:
   build-depends:       base >=4.13 && <4.14
                      , prodapi
+                     , prodapi-userauth
                      , servant-server
                      , wai
                      , wai-extra

@@ -64,8 +64,7 @@ modules:
 
 # TODO
 
-- split PostgreSQL and metrics to own packages
-- curation choices around argument-parsing
 - curation choices for code-generators
 - curation choices for leader-elections
+- curation choices around argument-parsing
 - scaffolder

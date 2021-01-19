@@ -25,15 +25,6 @@ library
       Prod.Reports
       Prod.Status
       Prod.Tracer
-      Prod.UserAuth
-      Prod.UserAuth.Api
-      Prod.UserAuth.Backend
-      Prod.UserAuth.Base
-      Prod.UserAuth.Counters
-      Prod.UserAuth.HandlerCombinators
-      Prod.UserAuth.JWT
-      Prod.UserAuth.Runtime
-      Prod.UserAuth.Trace
       Prod.Watchdog
       Paths_prodapi
   -- other-modules:
@@ -46,12 +37,9 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
-    , cookie
     , directory
     , http-media
-    , jwt
     , lucid
-    , postgresql-simple
     , prometheus-client
     , prometheus-metrics-ghc
     , servant
