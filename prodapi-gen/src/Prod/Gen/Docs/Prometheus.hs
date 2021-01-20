@@ -4,13 +4,14 @@ import Prod.Prometheus
 import Servant.Docs
 import Data.Proxy
 import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as ByteString
 
 instance ToSample PrometheusResult where
   toSamples _ =
      [ ("some prometheus example", PrometheusResult promdoc) ]
     where
         promdoc :: ByteString
-        promdoc = mconcat
+        promdoc = ByteString.unlines
            [ "# HELP prodapi_dns_discovery_results "
            , "# TYPE prodapi_dns_discovery_results gauge"
            , "prodapi_dns_discovery_results{m=\"dig\",type=\"A\",host=\"dicioccio.fr\"} 3.0"
