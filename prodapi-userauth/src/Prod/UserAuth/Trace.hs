@@ -12,9 +12,12 @@ data Track =
 
 -- | Track enough information to study potentially-malicious activities.
 data BehaviourTrack =
-    Attempt LoginAttempt
+    Attempt LoginAttempt LoginResult
   | Verification Bool
   | OptionalVerification Bool
+  | Registration RegistrationRequest RegistrationResult
+  | Recovery RecoveryRequest RecoveryRequestNotification
+  | ApplyRecovery ApplyRecoveryRequest RecoveryResult
 
 -- | Bearer tokens with JWT.
 data JwtTrack =

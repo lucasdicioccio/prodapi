@@ -15,6 +15,9 @@ module Prod.UserAuth.Runtime
     traceAttempt,
     traceVerification,
     traceOptionalVerification,
+    traceRegistration,
+    traceRecoveryRequest,
+    traceRecoveryApplication,
     traceAllowed,
     traceDisallowed,
     traceLimited,
@@ -26,7 +29,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Database.PostgreSQL.Simple (Connection, Only (..), close, connectPostgreSQL, execute, query, rollback, withTransaction)
-import Prod.UserAuth.Base (Minutes, LoginAttempt)
+import Prod.UserAuth.Base (Minutes, LoginAttempt, LoginResult, RegistrationRequest, RegistrationResult, RecoveryRequest, RecoveryRequestNotification, ApplyRecoveryRequest, RecoveryResult)
 import Prod.UserAuth.Counters (Counters (..), initCounters)
 import Prod.UserAuth.Trace (Track(..), BackendTrack(..), BehaviourTrack(..), JwtTrack(..))
 import Prod.Tracer (Tracer(..))
@@ -65,9 +68,9 @@ traceTransaction runtime conn act =
     trace runtime (Backend SQLTransaction)
     act
 
-traceAttempt :: MonadIO m => Runtime -> LoginAttempt -> m ()
-traceAttempt runtime l =
-  liftIO $ trace runtime $ Behaviour $ Attempt l
+traceAttempt :: MonadIO m => Runtime -> LoginAttempt -> LoginResult -> m ()
+traceAttempt runtime l r =
+  liftIO $ trace runtime $ Behaviour $ Attempt l r
 
 traceVerification :: MonadIO m => Runtime -> Bool -> m ()
 traceVerification runtime bool =
@@ -76,6 +79,18 @@ traceVerification runtime bool =
 traceOptionalVerification :: MonadIO m => Runtime -> Bool -> m ()
 traceOptionalVerification runtime bool =
   liftIO $ trace runtime $ Behaviour $ OptionalVerification bool
+
+traceRegistration :: MonadIO m => Runtime -> RegistrationRequest -> RegistrationResult -> m ()
+traceRegistration runtime req res =
+  liftIO $ trace runtime $ Behaviour $ Registration req res
+
+traceRecoveryRequest :: MonadIO m => Runtime -> RecoveryRequest -> RecoveryRequestNotification -> m ()
+traceRecoveryRequest runtime req res =
+  liftIO $ trace runtime $ Behaviour $ Recovery req res
+
+traceRecoveryApplication :: MonadIO m => Runtime -> ApplyRecoveryRequest -> RecoveryResult -> m ()
+traceRecoveryApplication runtime req res =
+  liftIO $ trace runtime $ Behaviour $ ApplyRecovery req res
 
 traceAllowed,traceDisallowed,traceLimited :: MonadIO m => Runtime -> m ()
 traceAllowed runtime =

@@ -19,6 +19,7 @@ import Prod.App as Prod
 import Prod.Status (statusPage, metricsSection, versionsSection, this)
 import Prod.Health as Health
 import qualified Prod.UserAuth as Auth
+import qualified Prod.UserAuth.Base as Auth
 import qualified Prod.Discovery as Discovery
 import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPrint, traceHPut, encodeJSON, pulls)
 
@@ -98,9 +99,14 @@ logPrint = Tracer print
 logUserAuth :: Tracer IO Auth.Track
 logUserAuth = Tracer f
   where
-    f (Auth.Behaviour (Auth.Attempt _)) = print "ua: attempt"
+    f (Auth.Behaviour (Auth.Attempt _ Auth.LoginFailed)) = print $ "ua: login attempt failed"
+    f (Auth.Behaviour (Auth.Attempt _ _)) = print $ "ua: login attempt success"
     f (Auth.Behaviour (Auth.Verification t)) = print $ "ua: verif: " <> show t
     f (Auth.Behaviour (Auth.OptionalVerification t)) = print $ "ua: opt-verif: " <> show t
+    f (Auth.Behaviour (Auth.Registration _ Auth.RegisterFailure)) = print $ "ua: user-registration failed"
+    f (Auth.Behaviour (Auth.Registration _ _)) = print $ "ua: user-registration success"
+    f (Auth.Behaviour (Auth.Recovery _ _)) = print $ "ua: pass-recovery requested"
+    f (Auth.Behaviour (Auth.ApplyRecovery _ t)) = print $ "ua: pass-recovery applied: " <> show t
     f (Auth.Bearer (Auth.Allowed Nothing)) = print "ua: jwt-limited"
     f (Auth.Bearer (Auth.Allowed (Just True))) = print "ua: jwt-allow"
     f (Auth.Bearer (Auth.Allowed (Just False))) = print "ua: jwt-disallow"

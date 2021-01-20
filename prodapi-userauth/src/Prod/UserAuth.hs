@@ -37,7 +37,7 @@ import Prod.UserAuth.Backend
 import Prod.UserAuth.Base
 import Prod.UserAuth.HandlerCombinators
 import Prod.UserAuth.JWT
-import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, secretstring, tokenValidityDuration, withConn, traceAttempt)
+import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, secretstring, tokenValidityDuration, withConn, traceAttempt, traceRegistration, traceRecoveryRequest, traceRecoveryApplication)
 import Prod.UserAuth.Trace
 import qualified Prometheus as Prometheus
 import Servant
@@ -92,6 +92,7 @@ handleRegister ::
 handleRegister runtime req = do
   inc registrations "requested" (counters runtime)
   res <- liftIO $ registerIO runtime req
+  traceRegistration runtime req res
   withheaders <- liftIO $ wrapHeader res
   inc registrations "ok" (counters runtime)
   pure $ withheaders res
@@ -107,8 +108,8 @@ handleLogin ::
   Handler (Headers '[Header "Set-Cookie" LoggedInCookie] LoginResult)
 handleLogin runtime attempt = do
   inc logins "requested" (counters runtime)
-  traceAttempt runtime attempt
   res <- liftIO $ loginIO runtime attempt
+  traceAttempt runtime attempt res
   withheaders <- liftIO $ wrapHeader res
   pure $ withheaders res
   where
@@ -126,12 +127,15 @@ handleRecoveryRequest runtime req = do
   inc recoveryRequests "requested" (counters runtime)
   _ <- liftIO $ recoveryRequestIO runtime req
   inc recoveryRequests "ok" (counters runtime)
-  pure $ RecoveryRequestNotification (email (req :: RecoveryRequest)) tokenValidityDuration
+  let res = RecoveryRequestNotification (email (req :: RecoveryRequest)) tokenValidityDuration
+  traceRecoveryRequest runtime req res
+  pure res
 
 handleApplyRecovery :: Runtime -> ApplyRecoveryRequest -> Handler RecoveryResult
 handleApplyRecovery runtime req = do
   inc recoveryApplied "requested" (counters runtime)
   res <- liftIO $ applyRecoveryIO runtime req
+  traceRecoveryApplication runtime req res
   case res of
     RecoverySuccess -> pure res <* inc recoveryApplied "ok" (counters runtime)
     _ -> throwError err403
