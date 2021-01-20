@@ -14,7 +14,7 @@ Up to date
     - `application/json;charset=utf-8`
     - `application/json`
 
-- the unit type (`application/json;charset=utf-8`, `application/json`):
+- the unit type, representing an absence of return value (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
 []

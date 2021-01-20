@@ -27,13 +27,13 @@ instance ToSample JWTClaimsSet where
                   )
                 ]
 instance ToSample () where
-  toSamples _ = [ ("the unit type", ()) ]
+  toSamples _ = [ ("the unit type, representing an absence of return value", ()) ]
 instance ToSample Text where
   toSamples _ = [ ("some arbitrary text", "lorem ipsum") ]
-
 instance ToSample WhoAmI where
   toSamples _ = [ ("i am a robot", WhoAmI "a robot" )
-                , ("i am a girafe", WhoAmI "a girafe" )]
+                , ("i am a girafe", WhoAmI "a girafe" )
+                ]
 
 instance ToSample LoggedInCookie where
   toSamples _ = [ ("an encoded JWT", LoggedInCookie example) ]
