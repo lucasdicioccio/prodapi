@@ -3,6 +3,7 @@ module Main where
 import Control.Monad (void)
 import qualified Prod.Gen.Docs.Health
 import qualified Prod.Gen.Docs.Echo
+import qualified Prod.Gen.Docs.Prometheus
 import qualified Prod.Gen.Docs.Status
 import qualified Prod.Gen.Docs.UserAuth
 import qualified Prod.Gen.Docs.Reports
@@ -37,4 +38,5 @@ registry =
  , ( ("docs", "status") , Prod.Gen.Docs.Status.run )
  , ( ("docs", "user-auth") , Prod.Gen.Docs.UserAuth.run )
  , ( ("docs", "reports") , Prod.Gen.Docs.Reports.run )
+ , ( ("docs", "prometheus") , Prod.Gen.Docs.Prometheus.run )
  ]

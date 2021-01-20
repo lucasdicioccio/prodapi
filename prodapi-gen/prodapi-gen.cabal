@@ -21,6 +21,7 @@ library
   exposed-modules:
                 Prod.Gen.Docs.Echo,
                 Prod.Gen.Docs.Health,
+                Prod.Gen.Docs.Prometheus,
                 Prod.Gen.Docs.Reports,
                 Prod.Gen.Docs.Status,
                 Prod.Gen.Docs.UserAuth
@@ -33,6 +34,7 @@ library
                      , servant-docs
                      , aeson
                      , text
+                     , bytestring
                      , lucid
                      , http-api-data
   hs-source-dirs:    src

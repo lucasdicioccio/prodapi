@@ -4,6 +4,7 @@
 module Prod.Prometheus
   ( handlePrometheus,
     PrometheusApi,
+    PrometheusResult(..),
     initPrometheus,
     inc,
     obs,

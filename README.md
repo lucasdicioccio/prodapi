@@ -49,7 +49,8 @@ modules:
 - see [gen/docs/docs-status.md](gen/docs/docs-status.md)
 
 ## metrics
-- exposes counters over Prometheus
+- exposes counters over [Prometheus](http://prometheus.io/)
+- see [gen/docs/docs-prometheus.md](gen/docs/docs-prometheus.md)
 
 ## logging
 - promotes the use of contravariant logging to avoid forcing an early choice on library users
