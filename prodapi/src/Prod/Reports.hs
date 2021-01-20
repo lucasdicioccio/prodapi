@@ -2,6 +2,7 @@
 
 module Prod.Reports
   ( ReportsApi,
+    Report(..),
     countReports,
     Runtime,
     initRuntime,
@@ -9,7 +10,7 @@ module Prod.Reports
 where
 
 import Control.Monad.IO.Class (liftIO)
-import Data.Aeson ((.:), FromJSON (..), withObject)
+import Data.Aeson ((.:), (.=), FromJSON (..), withObject, ToJSON(..), object)
 import GHC.TypeLits (Symbol)
 import qualified Prometheus as Prometheus
 import Servant ((:>), JSON, Post, ReqBody, Summary)
@@ -23,6 +24,8 @@ data Report a = Report {posixTime :: Int, backoff :: Int, events :: [a]}
 instance FromJSON a => FromJSON (Report a) where
   parseJSON = withObject "Report" $ \o ->
     Report <$> o .: "t" <*> o .: "b" <*> o .: "es"
+instance ToJSON a => ToJSON (Report a) where
+  toJSON (Report t b es) = object [ "t" .= t, "b" .= b ,  "es" .= es ]
 
 type ReportsApi a =
   Summary "receives and acknowledge some reports"

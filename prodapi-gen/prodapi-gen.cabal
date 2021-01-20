@@ -21,6 +21,7 @@ library
   exposed-modules:
                 Prod.Gen.Docs.Echo,
                 Prod.Gen.Docs.Health,
+                Prod.Gen.Docs.Reports,
                 Prod.Gen.Docs.Status,
                 Prod.Gen.Docs.UserAuth
   default-extensions: OverloadedStrings, TypeApplications, DeriveGeneric, DataKinds, FlexibleInstances, TypeOperators, ScopedTypeVariables

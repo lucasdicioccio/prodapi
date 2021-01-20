@@ -56,6 +56,7 @@ modules:
 
 ## client-reporting
 - simple API for clients to dial-in some timestamped logs (e.g., session digests, errors)
+- see [gen/docs/docs-reports.md](gen/docs/docs-reports.md)
 
 ## primitive authentication
 - PostgreSQL minimal identity management
