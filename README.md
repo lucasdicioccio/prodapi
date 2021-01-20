@@ -61,6 +61,7 @@ modules:
 - PostgreSQL minimal identity management
 - JWT claims in a Cookies
 - Servant Combinators for Cookie-Protection
+- see [gen/docs/docs-user-auth.md](gen/docs/docs-user-auth.md)
 
 ## background values and watchdogs
 - ways to spawn asynchronously-updated values

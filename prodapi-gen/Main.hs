@@ -4,6 +4,7 @@ import Control.Monad (void)
 import qualified Prod.Gen.Docs.Health
 import qualified Prod.Gen.Docs.Echo
 import qualified Prod.Gen.Docs.Status
+import qualified Prod.Gen.Docs.UserAuth
 import System.Environment (getArgs)
 import System.Exit (exitFailure, exitSuccess)
 
@@ -33,4 +34,5 @@ registry =
  [ ( ("docs", "health") , Prod.Gen.Docs.Health.run )
  , ( ("docs", "echo") , Prod.Gen.Docs.Echo.run )
  , ( ("docs", "status") , Prod.Gen.Docs.Status.run )
+ , ( ("docs", "user-auth") , Prod.Gen.Docs.UserAuth.run )
  ]
