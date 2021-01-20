@@ -14,6 +14,7 @@ import GHC.TypeLits (Symbol)
 import qualified Prometheus as Prometheus
 import Servant ((:>), JSON, Post, ReqBody, Summary)
 import Servant.Server (Handler)
+import Prod.Tracer
 
 -- | Some minimal report wrapper.
 -- Has low expectations on the client.
@@ -54,17 +55,18 @@ newCounters =
         Prometheus.summary (Prometheus.Info k "") Prometheus.defaultQuantiles
 
 -- | A default runtime for the `dropReports` route.
-data Runtime = Runtime !Counters
+data Runtime a = Runtime { counters :: !Counters , tracer :: !(Tracer IO (Report a)) }
 
-initRuntime :: IO Runtime
-initRuntime = Runtime <$> newCounters
+initRuntime :: Tracer IO (Report a) -> IO (Runtime a)
+initRuntime tracer = Runtime <$> newCounters <*> pure tracer
 
 -- | Count and drop reports.
-countReports :: Runtime -> Report a -> Handler Int
-countReports (Runtime counters) report = do
+countReports :: Runtime a -> Report a -> Handler Int
+countReports (Runtime counters tracer) report = do
   let size = length (events report)
   let dsize = fromIntegral size
   liftIO $ do
+    runTracer tracer $ report
     Prometheus.incCounter (reports_count counters)
     Prometheus.addCounter (reported_events counters) dsize
     Prometheus.observe (reported_sizes counters) dsize
