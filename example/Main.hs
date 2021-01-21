@@ -23,6 +23,7 @@ import qualified Prod.UserAuth.Base as Auth
 import qualified Prod.Discovery as Discovery
 import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPrint, traceHPut, encodeJSON, pulls)
 
+import qualified BackgroundNetwork
 import qualified Hello
 import qualified Monitors
 import qualified Monitors.Base as Monitors
@@ -133,6 +134,7 @@ logMonitors = choose f (pulls wrapWithThis . encodeJSON $ traceHPut stdout) (cho
 
 main :: IO ()
 main = do
+  _ <- BackgroundNetwork.complicatedNetworkOfBackgroundUpdates tracePrint
   helloRt <- Hello.initRuntime logPrint
   authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" (logUserAuth)
   monitorsRt <- Monitors.initRuntime logMonitors authRt

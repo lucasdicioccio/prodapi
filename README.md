@@ -52,9 +52,6 @@ modules:
 - exposes counters over [Prometheus](http://prometheus.io/)
 - see [gen/docs/docs-prometheus.md](gen/docs/docs-prometheus.md)
 
-## logging
-- promotes the use of contravariant logging to avoid forcing an early choice on library users
-
 ## client-reporting
 - simple API for clients to dial-in some timestamped logs (e.g., session digests, errors)
 - see [gen/docs/docs-reports.md](gen/docs/docs-reports.md)
@@ -64,6 +61,9 @@ modules:
 - JWT claims in a Cookies
 - Servant Combinators for Cookie-Protection
 - see [gen/docs/docs-user-auth.md](gen/docs/docs-user-auth.md)
+
+## logging and events emission
+- promotes the use of contravariant logging to avoid forcing an early choice on library users
 
 ## background values and watchdogs
 - ways to spawn asynchronously-updated values
