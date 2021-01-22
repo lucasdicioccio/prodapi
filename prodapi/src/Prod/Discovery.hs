@@ -20,14 +20,14 @@ import qualified Prod.Background
 import System.Process.ByteString (readProcessWithExitCode)
 import Prod.Tracer (Tracer(..), contramap)
 
-data Track = BackgroundTrack Prod.Background.Track
-  deriving (Show)
+data Track a = BackgroundTrack (Prod.Background.Track (Result a))
+  deriving (Show, Functor)
 
 data Result a
   = NotAsked
   | Asked UTCTime
   | Found UTCTime a
-  deriving (Functor)
+  deriving (Show, Functor)
 
 toMaybe :: Result a -> Maybe a
 toMaybe (Found _ a) = Just a
@@ -41,16 +41,16 @@ readCurrent (Discovery b) = readBackgroundVal b
 
 type Host = Text
 
-data DNSTrack = DNSTrack Text Host Track
+data DNSTrack a = DNSTrack Text Host (Track a)
   deriving (Show)
 
-dnsA :: Tracer IO DNSTrack -> Host -> IO (Discovery [Host])
+dnsA :: Tracer IO (DNSTrack [Host]) -> Host -> IO (Discovery [Host])
 dnsA tracer hostname = dig (contramap (DNSTrack hostname "A") tracer) "A" $ Text.unpack hostname
 
-dnsAAAA :: Tracer IO DNSTrack -> Host -> IO (Discovery [Host])
+dnsAAAA :: Tracer IO (DNSTrack [Host]) -> Host -> IO (Discovery [Host])
 dnsAAAA tracer hostname = dig (contramap (DNSTrack hostname "AAAA") tracer) "AAAA" $ Text.unpack hostname
 
-dig :: Tracer IO Track -> String -> String -> IO (Discovery [Host])
+dig :: Tracer IO (Track [Host]) -> String -> String -> IO (Discovery [Host])
 dig tracer typ target = cmdOut tracer "dig" ["+short",typ,target] "" tenSecs [] replaceHosts trigger
   where
     replaceHosts :: [Host] -> ByteString -> [Host]
@@ -92,7 +92,7 @@ dnsDiscoveryCounter =
 
 cmdOut
   :: forall a. 
-     Tracer IO Track
+     Tracer IO (Track a)
   -> String -- program to run
   -> [String] -- arguments to the program to run
   -> ByteString -- input submitted to the program

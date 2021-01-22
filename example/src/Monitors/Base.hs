@@ -42,7 +42,7 @@ newtype Registration = Registration { registration :: Text }
 
 type DeRegistration = Int
 
-data Track = BackgroundPing PingTarget Prod.Background.Track
+data Track = BackgroundPing PingTarget (Prod.Background.Track (Maybe CommandOutput))
   | PingVal PingTarget ByteString
   | Registered Registration
   deriving (Show)

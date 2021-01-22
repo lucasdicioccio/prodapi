@@ -13,7 +13,7 @@ import Data.Time.Clock (UTCTime, getCurrentTime)
 import Control.Exception.Base (IOException, catch)
 import System.Directory (setModificationTime, doesFileExist)
 
-data Track = BackgroundTrack Prod.Background.Track
+data Track r = BackgroundTrack (Prod.Background.Track (WatchdogResult r))
   deriving (Show)
 
 data WatchdogResult a
@@ -24,13 +24,13 @@ data WatchdogResult a
 
 data Watchdog a = Watchdog {
     backgroundVal :: BackgroundVal (WatchdogResult a)
-  , tracer :: Tracer IO Track
+  , tracer :: Tracer IO (Track a)
   }
 
 watchdog
   :: (Prometheus.Label label)
   => Vector label Counter
-  -> Tracer IO Track
+  -> Tracer IO (Track a)
   -> (WatchdogResult a -> label)
   -> MicroSeconds Int
   -> IO (WatchdogResult a)
@@ -47,7 +47,7 @@ watchdog counters tracer mkLabel delay action =
 -- The input vector label is set with success|failed|skipped depending on the WatchdogResult.
 basicWatchdog
   :: Vector Label1 Counter
-  -> Tracer IO Track
+  -> Tracer IO (Track a)
   -> MicroSeconds Int
   -> IO (WatchdogResult a)
   -> IO (Watchdog a)
@@ -60,7 +60,7 @@ basicLabel res = case res of
   Failed    -> "failed"
   Skipped   -> "skipped"
 
-data FileTouchTrack = FileTouchTrack FilePath Track
+data FileTouchTrack r = FileTouchTrack FilePath (Track r)
   deriving (Show)
 
 -- | Touches a file periodically, using setModificationTime.
@@ -68,7 +68,7 @@ data FileTouchTrack = FileTouchTrack FilePath Track
 -- created empty.
 fileTouchWatchdog
   :: FilePath
-  -> Tracer IO FileTouchTrack
+  -> Tracer IO (FileTouchTrack UTCTime)
   -> MicroSeconds Int
   -> IO (Watchdog UTCTime)
 fileTouchWatchdog path tracer delay = do

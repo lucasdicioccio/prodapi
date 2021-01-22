@@ -1,5 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module Prod.Background
   ( BackgroundVal,
@@ -16,17 +17,17 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Async, async, cancel)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
 import Prod.Tracer (Tracer(..))
 
 import GHC.Stack (HasCallStack, callStack, CallStack)
 
-data Track =
-    Init
+data Track r =
+    Init r
   | RunStart
-  | RunDone
+  | RunDone r r
   | Kill CallStack
-  deriving (Show)
+  deriving (Show, Functor)
 
 -- | A value that is coupled to an async in charge of updating the value.
 data BackgroundVal a
@@ -38,11 +39,8 @@ data BackgroundVal a
         currentValue :: IORef r,
         -- | a background task responsible for updating the value, implementations should guarantee that once the Aync () is cancelled, currentValue is never updated
         backgroundTask :: Async (),
-        tracer :: Tracer IO Track
+        tracer :: Tracer IO (Track r)
       }
-
-traceBkg :: MonadIO m => BackgroundVal a -> Track -> m ()
-traceBkg b t = liftIO $ (runTracer $ tracer b) t
 
 instance Functor BackgroundVal where
   fmap g (BackgroundVal f ioref task tracer) =
@@ -50,7 +48,7 @@ instance Functor BackgroundVal where
 
 -- | Starts a background task continuously updating a value.
 background ::
-  Tracer IO Track ->
+  Tracer IO (Track a) ->
   -- | initial state
   b ->
   -- | initial value
@@ -59,16 +57,16 @@ background ::
   (b -> IO (a, b)) ->
   IO (BackgroundVal a)
 background tracer initState defaultValue task = do
-  trace Init
+  trace (Init defaultValue)
   ref <- newIORef defaultValue
   BackgroundVal id ref <$> async (loop ref initState) <*> pure tracer
   where
     trace = runTracer tracer
     loop ref st0 = do
       trace (RunStart)
-      (val, st1) <- task st0
-      trace (RunDone)
-      seq val $ writeIORef ref val
+      (newVal, st1) <- task st0
+      oldVal <- seq newVal $ atomicModifyIORef' ref (\old -> (newVal, old))
+      trace (RunDone oldVal newVal)
       seq st1 $ loop ref st1
 
 -- | Fantom type for annotating Int.
@@ -77,7 +75,7 @@ type MicroSeconds n = n
 -- | Starts a background task continuously updating a value at a periodic interval.
 -- This is implemented by interspersing a threadDelay before the task and calling background and hiding the 'state-passing' arguments.
 backgroundLoop ::
-  Tracer IO Track ->
+  Tracer IO (Track a) ->
   -- | initial value
   a ->
   -- | periodic task
@@ -91,12 +89,12 @@ backgroundLoop tracer defaultValue task usecs = do
     adapt x = (x, ())
 
 -- | Kills the watchdog by killing the underlying async.
-kill :: (HasCallStack, MonadIO m) => BackgroundVal a -> m ()
-kill bkg = do
-  traceBkg bkg (Kill callStack)
-  liftIO $ cancel . backgroundTask $ bkg
-
--- | Kills the watchdog by killing the underlying async.
 readBackgroundVal :: MonadIO m => BackgroundVal a -> m a
 readBackgroundVal (BackgroundVal f ioref _ _) =
   fmap f $ liftIO $ readIORef ioref
+
+-- | Kills the watchdog by killing the underlying async.
+kill :: (HasCallStack, MonadIO m) => BackgroundVal a -> m ()
+kill bkg@(BackgroundVal _ _ _ tracer) = liftIO $ do
+  runTracer tracer (Kill callStack)
+  liftIO $ cancel . backgroundTask $ bkg
