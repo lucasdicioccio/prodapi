@@ -133,6 +133,7 @@ are here have one of either reasons:
 
 ## metrics
 - exposes counters over [Prometheus](http://prometheus.io/)
+- a PuresScript-made interactive visualizer (in `/backend-tools` and provided compiled in `www/metrics.js`)
 - see [gen/docs/docs-prometheus.md](gen/docs/docs-prometheus.md)
 
 ## client-reporting
@@ -151,6 +152,21 @@ are here have one of either reasons:
 ## background values and watchdogs
 - ways to spawn asynchronously-updated values
 - special case of watchdogs which touch a prometheus counter on success
+- special case of discoveries for background values that locate addresses (e.g., DNS lookups)
+
+# Example
+
+The `/example` directory serves as a demo: it features a putative monitoring
+application which has some background values (discoveries, watchdog touching a
+file), a handler to register and perfom _pings_ to target addresses.
+Modifying the registered targets requires some authenticated account.
+Counters and logs track well the behavior of the application.
+
+A status page collates (cf. screenshot below) displays a lot of useful
+information and even has some HTML forms to easily operate some of the
+endpoints.
+
+![screenshot of example status page](docs/example-screenshot-status.png).
 
 # TODO
 
