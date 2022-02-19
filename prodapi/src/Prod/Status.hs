@@ -13,6 +13,7 @@ module Prod.Status
     statusPage,
     handleStatus,
     Status(..),
+    Identification(..),
     this,
   )
 where
