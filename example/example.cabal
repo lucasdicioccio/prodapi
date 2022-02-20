@@ -21,7 +21,7 @@ executable example
   ghc-options:         -rtsopts -threaded -O2
   other-modules:       Hello, Monitors, Monitors.Api, Monitors.Base, Monitors.Counters, Monitors.Handlers, BackgroundNetwork
   -- other-extensions:
-  build-depends:       base >=4.13 && <4.14
+  build-depends:       base >=4.13
                      , prodapi
                      , prodapi-userauth
                      , servant-server

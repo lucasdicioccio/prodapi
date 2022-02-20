@@ -147,7 +147,7 @@ main = do
     $ appWithContext
         init
         (exampleStatus helloRt monitorsRt)
-        (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection)
+        (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection "metrics.js")
         (Hello.serve helloRt
          :<|> Monitors.handle monitorsRt
          :<|> Auth.handleUserAuth authRt)

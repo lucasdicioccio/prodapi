@@ -93,7 +93,6 @@ defaultStatusPage renderAppStatus = go
         head_ $ do
           title_ "status page"
           link_ [ rel_ "stylesheet", type_ "text/css", href_ "status.css"]
-          toHtmlRaw @Text "<script async type=\"text/javascript\" src=\"metrics.js\"></script>"
         body_ $ do
           section_ $ do
             h1_ "identification"
@@ -126,12 +125,15 @@ defaultStatusPage renderAppStatus = go
 statusPage :: ToHtml a => RenderStatus a
 statusPage = defaultStatusPage toHtml
 
+type MetricsJSurl = Text
+
 -- | Section with metrics.
-metricsSection :: RenderStatus a
-metricsSection = const $
+metricsSection :: MetricsJSurl -> RenderStatus a
+metricsSection metrics_js = const $
   section_ $ do
     h1_ "metrics"
     with div_ [ id_ "metrics" ] $ pure ()
+    toHtmlRaw @Text $ "<script async type=\"text/javascript\" src=\"" <> metrics_js <> "\"></script>"
 
 versionsSection :: [(String, Version)] -> RenderStatus a
 versionsSection pkgs = const $
