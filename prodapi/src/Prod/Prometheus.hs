@@ -1,9 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Prod.Prometheus
   ( handlePrometheus,
     PrometheusApi,
+    CORSAllowOrigin(..),
     PrometheusResult(..),
     initPrometheus,
     inc,
@@ -14,6 +16,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString.Lazy (ByteString)
+import Data.Coerce (coerce)
 import Data.Text (Text)
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import qualified Network.HTTP.Media as M
@@ -31,13 +34,18 @@ instance MimeRender PlainText PrometheusResult where
 type PrometheusApi =
   Summary "Prometheus metrics"
     :> "metrics"
-    :> Get '[PlainText] PrometheusResult
+    :> Get '[PlainText] (Headers '[Header "Access-Control-Allow-Origin" CORSAllowOrigin] PrometheusResult)
 
-handlePrometheus :: Server PrometheusApi
-handlePrometheus = handleMetrics
+newtype CORSAllowOrigin = CORSAllowOrigin Text
+  deriving ToHttpApiData
+
+handlePrometheus :: CORSAllowOrigin -> Server PrometheusApi
+handlePrometheus corsAllow = handleMetrics
   where
-    handleMetrics :: Handler PrometheusResult
-    handleMetrics = liftIO $ fmap PrometheusResult exportMetricsAsText
+    handleMetrics :: Handler (Headers '[Header "Access-Control-Allow-Origin" CORSAllowOrigin] PrometheusResult)
+    handleMetrics = do
+      metrics <- liftIO $ exportMetricsAsText
+      pure $ addHeader (coerce corsAllow) $ PrometheusResult metrics
 
 initPrometheus :: IO GHCMetrics
 initPrometheus = register ghcMetrics

@@ -48,7 +48,7 @@ app (Init runtime) getStatus renderStatus appHandler proxy0 =
     (proxy proxy0)
     ( handleHealth runtime
         :<|> handleStatus runtime getStatus renderStatus
-        :<|> handlePrometheus
+        :<|> handlePrometheus (CORSAllowOrigin "*")
         :<|> appHandler
         :<|> serveDirectoryFileServer "www"
     )
@@ -74,7 +74,7 @@ appWithContext (Init runtime) getStatus renderStatus appHandler proxy0 context =
     context
     ( handleHealth runtime
         :<|> handleStatus runtime getStatus renderStatus
-        :<|> handlePrometheus
+        :<|> handlePrometheus (CORSAllowOrigin "*")
         :<|> appHandler
         :<|> serveDirectoryFileServer "www"
     )
