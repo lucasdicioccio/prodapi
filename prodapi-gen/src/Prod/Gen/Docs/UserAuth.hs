@@ -56,7 +56,7 @@ instance ToSample RecoveryRequest where
   toSamples _ = [ ("recovery request", RecoveryRequest "foo@example.com" )
                 ]
 instance ToSample RecoveryRequestNotification where
-  toSamples _ = [ ("recovery request notification valid for 60minutes", RecoveryRequestNotification "foo@example.com" 60)
+  toSamples _ = [ ("recovery request notification valid for 60minutes", RecoveryRequestNotification "foo@example.com" 60 "random-bytes")
                 ]
 instance ToSample ApplyRecoveryRequest where
   toSamples _ = [ ("apply a token received out of bound", ApplyRecoveryRequest "foo@example.com" "new-password" "secret token received out of bound") ]

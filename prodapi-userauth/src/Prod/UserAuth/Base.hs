@@ -104,7 +104,8 @@ instance FromForm RecoveryRequest
 data RecoveryRequestNotification
   = RecoveryRequestNotification
       { email :: Text,
-        minutes :: Minutes
+        minutes :: Minutes,
+        token :: TokenValue
       }
   deriving (Generic)
 

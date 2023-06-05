@@ -125,9 +125,10 @@ handleLogin runtime attempt = do
 handleRecoveryRequest :: Runtime -> RecoveryRequest -> Handler RecoveryRequestNotification
 handleRecoveryRequest runtime req = do
   inc recoveryRequests "requested" (counters runtime)
-  _ <- liftIO $ recoveryRequestIO runtime req
+  xs <- liftIO $ recoveryRequestIO runtime req
+  let token = case xs of [] -> "" ; (x:_) -> tokenValue x :: Text
   inc recoveryRequests "ok" (counters runtime)
-  let res = RecoveryRequestNotification (email (req :: RecoveryRequest)) tokenValidityDuration
+  let res = RecoveryRequestNotification (email (req :: RecoveryRequest)) tokenValidityDuration token
   traceRecoveryRequest runtime req res
   pure res
 

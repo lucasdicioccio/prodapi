@@ -142,6 +142,9 @@ data NewRecovery
 
 type Token = Only TokenValue
 
+tokenValue :: Token -> TokenValue
+tokenValue (Only v) = v
+
 newrecovery :: Connection -> NewRecovery -> IO [Token]
 newrecovery conn recover = query conn q (Only uidV)
   where
