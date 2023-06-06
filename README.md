@@ -154,6 +154,9 @@ are here have one of either reasons:
 - special case of watchdogs which touch a prometheus counter on success
 - special case of discoveries for background values that locate addresses (e.g., DNS lookups)
 
+## reverse proxying
+- minimal reverse-proxying wrapping [http-reverse-proxy](https://hackage.haskell.org/package/http-reverse-proxy)
+
 # Example
 
 The `/example` directory serves as a demo: it features a putative monitoring

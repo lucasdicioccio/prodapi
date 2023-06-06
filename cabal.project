@@ -1,5 +1,6 @@
 
 packages: prodapi/
           prodapi-gen/
+          prodapi-proxy/
           prodapi-userauth/
           example/

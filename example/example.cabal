@@ -24,6 +24,7 @@ executable example
   build-depends:       base >=4.13
                      , prodapi
                      , prodapi-userauth
+                     , prodapi-proxy
                      , servant-server
                      , wai
                      , wai-extra

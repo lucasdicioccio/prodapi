@@ -21,8 +21,10 @@ import Prod.Health as Health
 import qualified Prod.UserAuth as Auth
 import qualified Prod.UserAuth.Base as Auth
 import qualified Prod.Discovery as Discovery
+import qualified Prod.Proxy as ProdProxy
 import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPrint, traceHPut, encodeJSON, pulls)
 
+import qualified Data.Text.Encoding as Text
 import qualified BackgroundNetwork
 import qualified Hello
 import qualified Monitors
@@ -35,7 +37,14 @@ import Lucid (HtmlT, ToHtml(..), h4_, div_, p_, ul_, li_, a_, href_, with, form_
 import System.IO (stdout, stderr)
 import qualified Paths_prodapi
 
+-- simulate backend services
+type Service1 = "service-1" :> ProdProxy.Api
+type Service2 = "service-2" :> ProdProxy.Api
+
+
 type FullApi = Hello.Api
+  :<|> Service1
+  :<|> Service2
   :<|> Monitors.Api
   :<|> Auth.UserAuthApi
 
@@ -138,18 +147,33 @@ main = do
   helloRt <- Hello.initRuntime logPrint
   authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" (logUserAuth)
   monitorsRt <- Monitors.initRuntime logMonitors authRt
+  -- for demonstration purpose we initRuntime twice but there will be collisions on the metric name here
+  -- most applications should either have a single ProdProxy runtime (possibly called with multiple 'ProdProxy.handle').
+  service1Rt <- ProdProxy.initRuntime (ProdProxy.StaticBackend "httpbin.org" 80)
+  service2Rt <- ProdProxy.initRuntime (ProdProxy.DynamicBackend $ hostPortForDiscovered helloRt)
 
   healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime logHealth
   init <- initialize healthRt
   Warp.run
-    8000
+    7708
     $ RequestLogger.logStdoutDev
     $ appWithContext
         init
         (exampleStatus helloRt monitorsRt)
         (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection "metrics.js")
         (Hello.serve helloRt
+         :<|> ProdProxy.handle service1Rt
+         :<|> ProdProxy.handle service2Rt
          :<|> Monitors.handle monitorsRt
-         :<|> Auth.handleUserAuth authRt)
+         :<|> Auth.handleUserAuth authRt
+        )
         (Proxy @FullApi)
         (Auth.authServerContext authRt)
+
+hostPortForDiscovered :: Hello.Runtime -> ProdProxy.LookupHostPort
+hostPortForDiscovered helloRt = \_ -> do
+  hosts <- Hello.readDiscoveredHosts helloRt
+  print hosts
+  case hosts of
+    []    -> pure $ Nothing
+    (h:_) -> pure $ Just (Text.encodeUtf8 h, 80)
