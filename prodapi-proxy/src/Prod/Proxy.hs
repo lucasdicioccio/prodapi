@@ -7,6 +7,10 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Coerce (coerce)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import Data.Ord (comparing)
+import qualified Data.List as List
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Network.HTTP.Client as HTTP (Manager, newManager, defaultManagerSettings)
 import Network.HTTP.Types.Status (status404)
 import Network.HTTP.ReverseProxy
@@ -14,6 +18,12 @@ import qualified Network.Wai as Wai
 import qualified Prometheus as Prometheus
 import Servant
 import Servant.Server
+
+import Prod.Health (Readiness(..))
+import Prod.Discovery (Discovery)
+import qualified Prod.Discovery as Discovery
+import Prod.Background (BackgroundVal)
+import qualified Prod.Background as BackgroundVal
 
 type Api = ProxyRequestApi
 
@@ -38,6 +48,12 @@ data Backends
   = StaticBackend Host Port
   | DynamicBackend LookupHostPort
   | WaiProxyBackend (Wai.Request -> IO WaiProxyResponse)
+
+firstBackend :: IO [(Host, Port)] -> LookupHostPort
+firstBackend disc = const f
+  where
+    f :: IO (Maybe (Host, Port))
+    f = safeHead <$> disc
 
 data Runtime = Runtime {
     counters :: Counters
@@ -82,3 +98,8 @@ handleProxy rt =
   where
     countProxiedQuery :: IO ()
     countProxiedQuery = liftIO $ Prometheus.incCounter $ cnt_proxied_requests $ counters rt
+
+safeHead :: [a] -> Maybe a
+safeHead (x:_) = Just x
+safeHead _     = Nothing
+

@@ -171,9 +171,10 @@ main = do
         (Auth.authServerContext authRt)
 
 hostPortForDiscovered :: Hello.Runtime -> ProdProxy.LookupHostPort
-hostPortForDiscovered helloRt = \_ -> do
-  hosts <- Hello.readDiscoveredHosts helloRt
-  print hosts
-  case hosts of
-    []    -> pure $ Nothing
-    (h:_) -> pure $ Just (Text.encodeUtf8 h, 80)
+hostPortForDiscovered helloRt =
+    ProdProxy.firstBackend io
+  where
+    io = adapt <$> Discovery.readCurrent (Hello.discovery helloRt)
+    adapt (Discovery.Found _ hps) = fmap toHP hps
+    adapt _ = []
+    toHP h = (Text.encodeUtf8 h, 80)

@@ -57,6 +57,7 @@ newtype Reason = Reason Text
     via Text
 
 data Readiness = Ready | Ill (Set Reason)
+  deriving stock (Eq, Ord, Show)
   deriving (Generic)
 
 instance ToJSON Readiness
