@@ -4,6 +4,7 @@
 
 module Prod.Health
   ( HealthApi,
+    GetReadinessApi,
     handleHealth,
     Liveness (..),
     Reason (..),
@@ -18,7 +19,7 @@ module Prod.Health
 where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Aeson (ToJSON (..), Value (String))
+import Data.Aeson (ToJSON (..), FromJSON, Value (String))
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
@@ -53,7 +54,7 @@ instance ToJSON Liveness where
 newtype Reason = Reason Text
   deriving stock (Eq, Ord, Show)
   deriving
-    (ToJSON)
+    (ToJSON, FromJSON)
     via Text
 
 data Readiness = Ready | Ill (Set Reason)
@@ -61,6 +62,7 @@ data Readiness = Ready | Ill (Set Reason)
   deriving (Generic)
 
 instance ToJSON Readiness
+instance FromJSON Readiness
 
 data Track = Afflict CallStack Reason | Cure CallStack Reason
   deriving (Show)

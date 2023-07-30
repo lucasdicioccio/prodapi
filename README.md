@@ -123,6 +123,8 @@ are here have one of either reasons:
 
 ## health-checking
 - normalizes whether an application is up or not
+- servers must expose some liveness and readiness API
+- primitives and a stateful client are provided in Prod.Healthcheck
 - see [gen/docs/docs-health.md](gen/docs/docs-health.md)
 
 ## status

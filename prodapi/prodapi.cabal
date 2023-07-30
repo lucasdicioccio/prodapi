@@ -20,6 +20,7 @@ library
       Prod.Discovery
       Prod.Echo
       Prod.Health
+      Prod.Healthcheck
       Prod.MimeTypes
       Prod.Prometheus
       Prod.Reports
@@ -44,7 +45,9 @@ library
     , prometheus-metrics-ghc
     , servant
     , servant-server >= 0.18
+    , servant-client
     , http-api-data
+    , http-client
     , text
     , time
     , uuid
