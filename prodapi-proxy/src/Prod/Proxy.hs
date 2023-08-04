@@ -19,11 +19,7 @@ import qualified Prometheus as Prometheus
 import Servant
 import Servant.Server
 
-import Prod.Health (Readiness(..))
-import Prod.Discovery (Discovery)
-import qualified Prod.Discovery as Discovery
-import Prod.Background (BackgroundVal)
-import qualified Prod.Background as BackgroundVal
+import System.Random.Shuffle (shuffleM)
 
 type Api = ProxyRequestApi
 
@@ -48,12 +44,6 @@ data Backends
   = StaticBackend Host Port
   | DynamicBackend LookupHostPort
   | WaiProxyBackend (Wai.Request -> IO WaiProxyResponse)
-
-firstBackend :: IO [(Host, Port)] -> LookupHostPort
-firstBackend disc = const f
-  where
-    f :: IO (Maybe (Host, Port))
-    f = safeHead <$> disc
 
 data Runtime = Runtime {
     counters :: Counters
@@ -102,4 +92,25 @@ handleProxy rt =
 safeHead :: [a] -> Maybe a
 safeHead (x:_) = Just x
 safeHead _     = Nothing
+
+-- backend compositions
+
+firstBackend :: IO [(Host, Port)] -> LookupHostPort
+firstBackend disc = const f
+  where
+    f :: IO (Maybe (Host, Port))
+    f = safeHead <$> disc
+
+randomBackend :: IO [(Host,Port)] -> LookupHostPort
+randomBackend disc = const f
+  where
+    f :: IO (Maybe (Host, Port))
+    f = safeHead <$> (disc >>= shuffleM)
+
+fallback :: LookupHostPort -> LookupHostPort -> LookupHostPort
+fallback l1 l2 = \req -> do
+  o1 <- l1 req
+  case o1 of
+    Nothing -> l2 req
+    Just _ -> pure o1
 

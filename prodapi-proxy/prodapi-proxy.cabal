@@ -28,6 +28,7 @@ library
     , containers
     , prodapi
     , prometheus-client
+    , random-shuffle
     , servant
     , servant-server >= 0.18
     , text
