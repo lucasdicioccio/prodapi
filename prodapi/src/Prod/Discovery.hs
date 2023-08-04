@@ -42,7 +42,7 @@ readCurrent (Discovery b) = readBackgroundVal b
 type Host = Text
 
 data DNSTrack a = DNSTrack Text Host (Track a)
-  deriving (Show)
+  deriving (Show,Functor)
 
 dnsA :: Tracer IO (DNSTrack [Host]) -> Host -> IO (Discovery [Host])
 dnsA tracer hostname = dig (contramap (DNSTrack hostname "A") tracer) "A" $ Text.unpack hostname

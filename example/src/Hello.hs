@@ -18,12 +18,15 @@ import Prod.Watchdog (basicWatchdog, Watchdog, WatchdogResult(..), fileTouchWatc
 import qualified Prod.Watchdog
 import Data.Time.Clock (UTCTime)
 import Prod.Discovery (Discovery, dnsA, Host, toMaybe, readCurrent)
-import qualified Prod.Discovery
+import qualified Prod.Background as Background
+import qualified Prod.Discovery as Discovery
+import qualified Prod.Healthcheck as Healthcheck
 import Prod.Tracer
 
 type Api = "hello-world" :> Get '[JSON] Text
 
-data Track = DiscoveryTrack (Prod.Discovery.DNSTrack [Host])
+data Track = DiscoveryTrack (Discovery.DNSTrack [Host])
+  | HealthcheckTrack Healthcheck.Track
   deriving (Show)
 
 type T = Tracer IO Track
@@ -65,7 +68,7 @@ readDiscoveredHosts = fmap (fromMaybe [] . toMaybe) . readCurrent . discovery
 initRuntime :: T -> IO Runtime
 initRuntime tracer = do
   healthchecker <- Healthcheck.initRuntime (contramap HealthcheckTrack tracer)
-  let healthCheckDiscoveredHosts = Tracer $ setChecksFromDNSDiscovery healthchecker
+  let healthCheckDiscoveredHosts = contramap (fmap port80) $ Tracer $ Healthcheck.setChecksFromDNSDiscovery healthchecker
   let discoveryTracker = contramap DiscoveryTrack tracer
   Runtime
     <$> newCounters
@@ -73,13 +76,9 @@ initRuntime tracer = do
     <*> fileTouchWatchdog "./example-prodapi-watchdog" silent 5000000 
     <*> dnsA (traceBoth discoveryTracker healthCheckDiscoveredHosts) "dicioccio.fr"
     <*> pure healthchecker
+
   where
-    setChecksFromDNSDiscovery :: Healthcheck.Runtime -> Discovery.DNSTrack [Host] -> IO ()
-    setChecksFromDNSDiscovery hcrt (Discovery.DNSTrack _ _ (Discovery.BackgroundTrack (Background.RunDone _ dnsResult))) =
-      case Discovery.toMaybe dnsResult of
-        Just xs -> Healthcheck.setChecks hcrt [(h,80) | h <- xs]
-        Nothing -> pure ()
-    setChecksFromDNSDiscovery hcrt _ = pure ()
+    port80 hosts = [(host,80)|host<-hosts]
 
 serve :: Runtime -> Handler Text
 serve runtime = do

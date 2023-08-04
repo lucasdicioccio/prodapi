@@ -16,6 +16,7 @@ import Prod.Tracer (Tracer, contramap)
 import Prod.Health (Readiness(..), GetReadinessApi)
 import Prod.Background (BackgroundVal)
 import qualified Prod.Background as Background
+import qualified Prod.Discovery as Discovery
 
 import Network.HTTP.Client (Manager, newManager, defaultManagerSettings)
 import qualified Servant.Client as ServantClient
@@ -67,6 +68,7 @@ emptyCheckSummary = CheckSummary Nothing []
 
 summaryTime :: CheckSummary -> Maybe UTCTime
 summaryTime s = resultTime <$> safeHead (recentChecks s)
+
 updateSummary :: Check -> CheckSummary -> CheckSummary
 updateSummary c s
   | isSuccess c = CheckSummary (Just c) (c:(take 2 (recentChecks s)))
@@ -134,6 +136,15 @@ setChecks rt hps = do
   traverse_ (cancelCheck rt) spurious
   traverse_ (requestCheck rt) missing
 
+-- | Helper to build a Tracer to update hosts to check based on DNS-discovered answers.
+-- Note that the DNSTrack only gives Host, so you need to fmap the port.
+setChecksFromDNSDiscovery :: Runtime -> Discovery.DNSTrack [(Host,Port)] -> IO ()
+setChecksFromDNSDiscovery rt (Discovery.DNSTrack _ _ (Discovery.BackgroundTrack (Background.RunDone _ newDNSResult))) =
+  case Discovery.toMaybe newDNSResult of
+    Just xs -> setChecks rt xs
+    Nothing -> pure ()
+setChecksFromDNSDiscovery hcrt _ = pure ()
+
 type SummaryMap = Map (Host,Port) (CheckSummary)
 
 readCheckMap :: CheckMap -> IO SummaryMap
@@ -142,6 +153,9 @@ readCheckMap = traverse Background.readBackgroundVal
 readBackgroundChecks :: Runtime -> IO SummaryMap
 readBackgroundChecks = readIORef . backgroundChecks >=> readCheckMap
 
+-- | Returns the set of (Host,Port) that are healthy in a given SummaryMap.
+--
+-- Healthiness consists in having the latest healthcheck as healthy.
 healthy :: SummaryMap -> [(Host, Port)]
 healthy m =
   fmap fst
@@ -157,4 +171,3 @@ healthy m =
 safeHead :: [a] -> Maybe a
 safeHead (x:_) = Just x
 safeHead _ = Nothing
-

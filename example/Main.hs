@@ -172,9 +172,10 @@ main = do
 
 hostPortForDiscovered :: Hello.Runtime -> ProdProxy.LookupHostPort
 hostPortForDiscovered helloRt =
-    ProdProxy.firstBackend io
+    ProdProxy.firstHealthy healthyBackends `ProdProxy.fallback` ProdProxy.randomBackend ioBackends
   where
-    io = adapt <$> Discovery.readCurrent (Hello.discovery helloRt)
+    healthyBackends = Hello.healthchecks helloRt
+    ioBackends = adapt <$> Discovery.readCurrent (Hello.discovery helloRt)
     adapt (Discovery.Found _ hps) = fmap toHP hps
     adapt _ = []
     toHP h = (Text.encodeUtf8 h, 80)
