@@ -56,17 +56,30 @@ data Runtime = Runtime
   , watchdog1 :: Watchdog ()
   , watchdog2 :: Watchdog UTCTime
   , discovery :: Discovery [Host]
+  , healthchecks :: Healthcheck.Runtime
   }
 
 readDiscoveredHosts :: Runtime -> IO [Host]
 readDiscoveredHosts = fmap (fromMaybe [] . toMaybe) . readCurrent . discovery
 
 initRuntime :: T -> IO Runtime
-initRuntime tracer = Runtime
-  <$> newCounters
-  <*> helloWatchdog
-  <*> fileTouchWatchdog "./example-prodapi-watchdog" silent 5000000 
-  <*> dnsA (contramap DiscoveryTrack tracer) "dicioccio.fr"
+initRuntime tracer = do
+  healthchecker <- Healthcheck.initRuntime (contramap HealthcheckTrack tracer)
+  let healthCheckDiscoveredHosts = Tracer $ setChecksFromDNSDiscovery healthchecker
+  let discoveryTracker = contramap DiscoveryTrack tracer
+  Runtime
+    <$> newCounters
+    <*> helloWatchdog
+    <*> fileTouchWatchdog "./example-prodapi-watchdog" silent 5000000 
+    <*> dnsA (traceBoth discoveryTracker healthCheckDiscoveredHosts) "dicioccio.fr"
+    <*> pure healthchecker
+  where
+    setChecksFromDNSDiscovery :: Healthcheck.Runtime -> Discovery.DNSTrack [Host] -> IO ()
+    setChecksFromDNSDiscovery hcrt (Discovery.DNSTrack _ _ (Discovery.BackgroundTrack (Background.RunDone _ dnsResult))) =
+      case Discovery.toMaybe dnsResult of
+        Just xs -> Healthcheck.setChecks hcrt [(h,80) | h <- xs]
+        Nothing -> pure ()
+    setChecksFromDNSDiscovery hcrt _ = pure ()
 
 serve :: Runtime -> Handler Text
 serve runtime = do

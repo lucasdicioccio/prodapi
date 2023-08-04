@@ -7,6 +7,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Coerce (coerce)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import qualified Data.Text.Encoding as Text
 import Data.Ord (comparing)
 import qualified Data.List as List
 import Data.Map.Strict (Map)
@@ -20,6 +21,8 @@ import Servant
 import Servant.Server
 
 import System.Random.Shuffle (shuffleM)
+import Prod.Health (Readiness(..))
+import qualified Prod.Healthcheck as Healthcheck
 
 type Api = ProxyRequestApi
 
@@ -95,6 +98,12 @@ safeHead _     = Nothing
 
 -- backend compositions
 
+firstHealthy :: Healthcheck.Runtime -> LookupHostPort
+firstHealthy rt =
+    randomBackend (fmap adapt . Healthcheck.healthy <$> Healthcheck.readBackgroundChecks rt)
+  where
+    adapt (hcHost, port) = (Text.encodeUtf8 hcHost, port)
+
 firstBackend :: IO [(Host, Port)] -> LookupHostPort
 firstBackend disc = const f
   where
@@ -113,4 +122,3 @@ fallback l1 l2 = \req -> do
   case o1 of
     Nothing -> l2 req
     Just _ -> pure o1
-

@@ -1,10 +1,12 @@
 module Prod.Healthcheck where
 
-import Control.Monad ((>=>))
+import Control.Monad (void, (>=>))
 import Control.Concurrent (threadDelay)
+import Data.Foldable (traverse_)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.IORef
+import qualified Data.Set as Set
 import Data.Time.Clock
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -65,11 +67,6 @@ emptyCheckSummary = CheckSummary Nothing []
 
 summaryTime :: CheckSummary -> Maybe UTCTime
 summaryTime s = resultTime <$> safeHead (recentChecks s)
-  where
-    safeHead :: [a] -> Maybe a
-    safeHead (x:_) = Just x
-    safeHead _ = Nothing
-
 updateSummary :: Check -> CheckSummary -> CheckSummary
 updateSummary c s
   | isSuccess c = CheckSummary (Just c) (c:(take 2 (recentChecks s)))
@@ -128,6 +125,15 @@ initRuntime tracer = do
         Nothing -> pure ()
         Just b -> terminateBackgroundCheck b
 
+setChecks :: Runtime -> [(Host,Port)] -> IO ()
+setChecks rt hps = do
+  let wantedSet = Set.fromList hps
+  currentSet <- Map.keysSet <$> readIORef (backgroundChecks rt)
+  let spurious = currentSet `Set.difference` wantedSet
+  let missing = wantedSet `Set.difference` currentSet
+  traverse_ (cancelCheck rt) spurious
+  traverse_ (requestCheck rt) missing
+
 type SummaryMap = Map (Host,Port) (CheckSummary)
 
 readCheckMap :: CheckMap -> IO SummaryMap
@@ -135,3 +141,20 @@ readCheckMap = traverse Background.readBackgroundVal
 
 readBackgroundChecks :: Runtime -> IO SummaryMap
 readBackgroundChecks = readIORef . backgroundChecks >=> readCheckMap
+
+healthy :: SummaryMap -> [(Host, Port)]
+healthy m =
+  fmap fst
+  $ filter recentlyHealthy
+  $ Map.toList m
+  where
+    recentlyHealthy :: ((Host,Port), CheckSummary) -> Bool
+    recentlyHealthy (_, c) =
+      maybe False isSuccess
+      $ safeHead
+      $ recentChecks c
+
+safeHead :: [a] -> Maybe a
+safeHead (x:_) = Just x
+safeHead _ = Nothing
+
