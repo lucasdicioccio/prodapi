@@ -8,6 +8,7 @@ module Prod.Background
     background,
     backgroundLoop,
     kill,
+    link,
     readBackgroundVal,
     Track(..)
   )
@@ -15,6 +16,7 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (Async, async, cancel)
+import qualified Control.Concurrent.Async as Async
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef')
@@ -98,3 +100,6 @@ kill :: (HasCallStack, MonadIO m) => BackgroundVal a -> m ()
 kill bkg@(BackgroundVal _ _ _ tracer) = liftIO $ do
   runTracer tracer (Kill callStack)
   liftIO $ cancel . backgroundTask $ bkg
+
+link :: BackgroundVal a -> BackgroundVal b -> IO ()
+link b1 b2 = Async.link2 (backgroundTask b1) (backgroundTask b2)
