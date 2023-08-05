@@ -2,6 +2,7 @@ module Prod.Healthcheck where
 
 import Control.Monad (void, (>=>))
 import Control.Concurrent (threadDelay)
+import qualified Data.Either as Either
 import Data.Foldable (traverse_)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -60,20 +61,19 @@ check httpManager host port = do
 data CheckSummary
   = CheckSummary
   { lastReady    :: Maybe Check
-  , recentChecks :: [Check]
+  , recentChecks :: [Either Error Check]
   }
   deriving Show
 
 emptyCheckSummary :: CheckSummary
 emptyCheckSummary = CheckSummary Nothing []
 
-summaryTime :: CheckSummary -> Maybe UTCTime
-summaryTime s = resultTime <$> safeHead (recentChecks s)
-
-updateSummary :: Check -> CheckSummary -> CheckSummary
-updateSummary c s
-  | isSuccess c = CheckSummary (Just c) (c:(take 2 (recentChecks s)))
-  | otherwise   = CheckSummary (lastReady s) (c:(take 2 (recentChecks s)))
+updateSummary :: Either Error Check -> CheckSummary -> CheckSummary
+updateSummary v@(Right c) s
+  | isSuccess c = CheckSummary (Just c) (v:(take 2 (recentChecks s)))
+  | otherwise   = CheckSummary (lastReady s) (v:(take 2 (recentChecks s)))
+updateSummary v@(Left _) s
+                = CheckSummary (lastReady s) (v:(take 2 (recentChecks s)))
 
 type CheckMap = Map (Host,Port) (BackgroundVal CheckSummary)
 
@@ -94,9 +94,8 @@ initBackgroundCheck cntrs manager tracer (h,p) =
       Prometheus.incCounter (healthcheck_count cntrs)
       res <- check manager h p
       threadDelay 5000000
-      case res of
-        Left err -> pure (st0, st0)
-        Right c -> let st1 = updateSummary c st0 in pure (st1, st1)
+      let st1 = updateSummary res st0
+      pure (st1, st1)
 
 terminateBackgroundCheck :: BackgroundVal CheckSummary -> IO ()
 terminateBackgroundCheck = Background.kill
@@ -136,7 +135,14 @@ initRuntime tracer = do
     pure $ Runtime cntrs manager r (add cntrs r manager) (del cntrs r)
   where
     add :: Counters -> IORef CheckMap -> Manager -> (Host, Port) -> IO (BackgroundVal CheckSummary)
-    add cntrs r manager = \hp@(h,p) -> do
+    add cntrs r manager = \hp -> do
+      c <- Map.lookup hp <$> readIORef r
+      case c of
+        Nothing -> doadd cntrs r manager hp
+        Just v -> pure v
+    
+    doadd :: Counters -> IORef CheckMap -> Manager -> (Host, Port) -> IO (BackgroundVal CheckSummary)
+    doadd cntrs r manager = \hp@(h,p) -> do
       Prometheus.incCounter (healthcheck_added cntrs)
       c <- initBackgroundCheck cntrs manager (contramap (BackgroundTrack h p) tracer) hp
       concurrentlyAdded <- atomicModifyIORef' r (\st0 -> (Map.insertWith (\_ old -> old) hp c st0, Map.lookup hp st0))
@@ -146,6 +152,7 @@ initRuntime tracer = do
 
     del :: Counters -> IORef CheckMap -> (Host, Port) -> IO ()
     del cntrs r = \hp -> do
+      print ("removing", hp)
       Prometheus.incCounter (healthcheck_removed cntrs)
       c <- atomicModifyIORef' r (\st0 -> (Map.delete hp st0, Map.lookup hp st0))
       case c of
@@ -161,14 +168,28 @@ setChecks rt hps = do
   traverse_ (cancelCheck rt) spurious
   traverse_ (requestCheck rt) missing
 
+cancelDeadChecks :: Runtime -> IO ()
+cancelDeadChecks rt = do
+  summary <- readBackgroundChecks rt
+  traverse_ (cancelCheck rt) (dead summary)
+
 -- | Helper to build a Tracer to update hosts to check based on DNS-discovered answers.
 -- Note that the DNSTrack only gives Host, so you need to fmap the port.
 setChecksFromDNSDiscovery :: Runtime -> Discovery.DNSTrack [(Host,Port)] -> IO ()
 setChecksFromDNSDiscovery rt (Discovery.DNSTrack _ _ (Discovery.BackgroundTrack (Background.RunDone _ newDNSResult))) =
   case Discovery.toMaybe newDNSResult of
-    Just xs -> setChecks rt xs
+    Just xs -> traverse_ (requestCheck rt) xs
     Nothing -> pure ()
 setChecksFromDNSDiscovery hcrt _ = pure ()
+
+-- | Same as 'setChecksFromDNSDiscovery' but only adding new checks.
+-- You should clear checks of permanently invalid backends.
+addChecksFromDNSDiscovery :: Runtime -> Discovery.DNSTrack [(Host,Port)] -> IO ()
+addChecksFromDNSDiscovery rt (Discovery.DNSTrack _ _ (Discovery.BackgroundTrack (Background.RunDone _ newDNSResult))) =
+  case Discovery.toMaybe newDNSResult of
+    Just xs -> setChecks rt xs
+    Nothing -> pure ()
+addChecksFromDNSDiscovery hcrt _ = pure ()
 
 type SummaryMap = Map (Host,Port) (CheckSummary)
 
@@ -191,6 +212,23 @@ healthy m =
     recentlyHealthy (_, c) =
       maybe False isSuccess
       $ safeHead
+      $ Either.rights
+      $ recentChecks c
+
+dead :: SummaryMap -> [(Host, Port)]
+dead m =
+  fmap fst
+  $ filter (\x -> neverHealthy x && healthChecked x)
+  $ Map.toList m
+  where
+    healthChecked :: ((Host,Port), CheckSummary) -> Bool
+    healthChecked (_, c) =
+      length (recentChecks c) >= 3
+    neverHealthy :: ((Host,Port), CheckSummary) -> Bool
+    neverHealthy (_, c) =
+      not
+      $ any isSuccess
+      $ Either.rights
       $ recentChecks c
 
 safeHead :: [a] -> Maybe a
