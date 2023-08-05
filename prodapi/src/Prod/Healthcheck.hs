@@ -12,6 +12,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Proxy (Proxy(..))
 
+import qualified Prometheus as Prometheus
 import Prod.Tracer (Tracer, contramap)
 import Prod.Health (Readiness(..), GetReadinessApi)
 import Prod.Background (BackgroundVal)
@@ -80,15 +81,17 @@ emptyCheckMap :: CheckMap
 emptyCheckMap = Map.empty
 
 initBackgroundCheck
-  :: Manager
+  :: Counters
+  -> Manager
   -> Tracer IO (Background.Track CheckSummary)
   -> (Host, Port)
   -> IO (BackgroundVal CheckSummary)
-initBackgroundCheck manager tracer (h,p) =
+initBackgroundCheck cntrs manager tracer (h,p) =
     Background.background tracer emptyCheckSummary emptyCheckSummary step
   where
     step :: CheckSummary -> IO (CheckSummary, CheckSummary)
     step st0 = do
+      Prometheus.incCounter (healthcheck_count cntrs)
       res <- check manager h p
       threadDelay 5000000
       case res of
@@ -100,28 +103,50 @@ terminateBackgroundCheck = Background.kill
 
 data Runtime
   = Runtime
-  { httpManager :: Manager
+  { counters :: Counters
+  , httpManager :: Manager
   , backgroundChecks :: IORef CheckMap
   , requestCheck :: (Host, Port) -> IO (BackgroundVal CheckSummary)
   , cancelCheck :: (Host, Port) -> IO ()
   }
 
+data Counters
+  = Counters
+    { healthcheck_added :: !Prometheus.Counter
+    , healthcheck_removed :: !Prometheus.Counter
+    , healthcheck_count :: !Prometheus.Counter
+    }
+
+newCounters :: IO Counters
+newCounters =
+  Counters
+    <$> counts "healthcheck_added"
+    <*> counts "healthcheck_removed"
+    <*> counts "healthchecks"
+  where
+    counts k =
+      Prometheus.register $
+        Prometheus.counter (Prometheus.Info k "")
+
 initRuntime :: Tracer IO Track -> IO Runtime
 initRuntime tracer = do
     r <- newIORef emptyCheckMap
     manager <- newManager defaultManagerSettings
-    pure $ Runtime manager r (add r manager) (del r)
+    cntrs <- newCounters
+    pure $ Runtime cntrs manager r (add cntrs r manager) (del cntrs r)
   where
-    add :: IORef CheckMap -> Manager -> (Host, Port) -> IO (BackgroundVal CheckSummary)
-    add r manager = \hp@(h,p) -> do
-      c <- initBackgroundCheck manager (contramap (BackgroundTrack h p) tracer) hp
+    add :: Counters -> IORef CheckMap -> Manager -> (Host, Port) -> IO (BackgroundVal CheckSummary)
+    add cntrs r manager = \hp@(h,p) -> do
+      Prometheus.incCounter (healthcheck_added cntrs)
+      c <- initBackgroundCheck cntrs manager (contramap (BackgroundTrack h p) tracer) hp
       concurrentlyAdded <- atomicModifyIORef' r (\st0 -> (Map.insertWith (\_ old -> old) hp c st0, Map.lookup hp st0))
       case concurrentlyAdded of
         Nothing -> pure c
         Just leader -> terminateBackgroundCheck c >> pure leader
 
-    del :: IORef CheckMap -> (Host, Port) -> IO ()
-    del r = \hp -> do
+    del :: Counters -> IORef CheckMap -> (Host, Port) -> IO ()
+    del cntrs r = \hp -> do
+      Prometheus.incCounter (healthcheck_removed cntrs)
       c <- atomicModifyIORef' r (\st0 -> (Map.delete hp st0, Map.lookup hp st0))
       case c of
         Nothing -> pure ()
