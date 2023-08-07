@@ -21,7 +21,9 @@ library
   exposed-modules:
       Prod.Proxy
       Prod.Proxy.Base
+      Prod.Proxy.Compat
       Prod.Proxy.Lookups
+      Prod.Proxy.R
       Paths_prodapi_proxy
   default-extensions: OverloadedStrings DataKinds TypeApplications TypeOperators
   build-depends:       base >=4.13

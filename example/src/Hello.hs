@@ -26,18 +26,25 @@ import Prod.Tracer
 type Api = "hello-world" :> Get '[JSON] Text
 
 data Track = DiscoveryTrack (Discovery.DNSTrack [Host])
-  | HealthcheckTrack Healthcheck.Track
+  | HealthcheckTrack (Healthcheck.Namespace, Healthcheck.Track)
   deriving (Show)
 
 type T = Tracer IO Track
 
 data Counters = Counters
   { helloes :: Prometheus.Summary
+  , routedQueries :: Prometheus.Counter
+  , fallbackProxiedQueries :: Prometheus.Counter
+  , nobackendProxiedQueries :: Prometheus.Counter
   }
 
 newCounters :: IO Counters
 newCounters =
-  Counters <$> mkHelloesSummary
+    Counters
+      <$> mkHelloesSummary
+      <*> mkRoutedCounter
+      <*> mkFallbackCounter
+      <*> mkNoFallbackCounter
   where
     mkHelloesSummary =
       let name = "helloes_durations" 
@@ -46,6 +53,15 @@ newCounters =
         Prometheus.summary
           (Prometheus.Info name help)
           Prometheus.defaultQuantiles
+    mkRoutedCounter =
+      Prometheus.register $
+        Prometheus.counter (Prometheus.Info "routed_queries" "number of queries routed")
+    mkFallbackCounter =
+      Prometheus.register $
+        Prometheus.counter (Prometheus.Info "fallback_queries" "number of queries using fallback")
+    mkNoFallbackCounter =
+      Prometheus.register $
+        Prometheus.counter (Prometheus.Info "fallback_missing_queries" "number of queries missing a fallback")
 
 helloWatchdog :: IO (Watchdog ())
 helloWatchdog = do
@@ -58,23 +74,26 @@ data Runtime = Runtime
   { counters :: Counters
   , watchdog1 :: Watchdog ()
   , watchdog2 :: Watchdog UTCTime
-  , discovery :: Discovery [Host]
+  , discovery1 :: Discovery [Host]
+  , discovery2 :: Discovery [Host]
   , healthchecks :: Healthcheck.Runtime
   }
 
-readDiscoveredHosts :: Runtime -> IO [Host]
-readDiscoveredHosts = fmap (fromMaybe [] . toMaybe) . readCurrent . discovery
+readDiscoveredHosts1 :: Runtime -> IO [Host]
+readDiscoveredHosts1 = fmap (fromMaybe [] . toMaybe) . readCurrent . discovery1
 
 initRuntime :: T -> IO Runtime
 initRuntime tracer = do
   healthchecker <- Healthcheck.initRuntime (contramap HealthcheckTrack tracer)
-  let healthCheckDiscoveredHosts = contramap (fmap port80) $ Tracer $ Healthcheck.setChecksFromDNSDiscovery healthchecker
+  -- _ <- Background.backgroundLoop tracePrint () (Healthcheck.cancelDeadChecks healthchecker) 1000000
+  let healthCheckDiscoveredHosts ns = contramap (fmap port80) $ Tracer $ \discmsg -> Healthcheck.withSpace healthchecker ns (\space -> (Healthcheck.addChecksFromDNSDiscovery space discmsg))
   let discoveryTracker = contramap DiscoveryTrack tracer
   Runtime
     <$> newCounters
     <*> helloWatchdog
     <*> fileTouchWatchdog "./example-prodapi-watchdog" silent 5000000 
-    <*> dnsA (traceBoth discoveryTracker healthCheckDiscoveredHosts) "dicioccio.fr"
+    <*> dnsA (traceBoth discoveryTracker (healthCheckDiscoveredHosts "dyncioccio")) "laptop.dyn.dicioccio.fr"
+    <*> dnsA (traceBoth discoveryTracker (healthCheckDiscoveredHosts "service3")) "dicioccio.fr"
     <*> pure healthchecker
 
   where

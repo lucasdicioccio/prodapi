@@ -9,18 +9,22 @@ module Main where
 import Network.Wai.Handler.Warp as Warp
 import Network.Wai.Middleware.RequestLogger as RequestLogger
 
+import Control.Applicative ((<|>))
 import Data.Function ((&))
+import Data.Text (Text)
 import Data.Aeson (ToJSON(..))
 import qualified Data.Set as Set
 import Data.Proxy (Proxy(..))
 import Servant
 import Servant.Server
+import qualified Prometheus as Prometheus
 import Prod.App as Prod
 import Prod.Status (statusPage, metricsSection, versionsSection, this)
 import Prod.Health as Health
 import qualified Prod.UserAuth as Auth
 import qualified Prod.UserAuth.Base as Auth
 import qualified Prod.Discovery as Discovery
+import qualified Prod.Healthcheck as Healthcheck
 import qualified Prod.Proxy as ProdProxy
 import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPrint, traceHPut, encodeJSON, pulls)
 
@@ -40,11 +44,13 @@ import qualified Paths_prodapi
 -- simulate backend services
 type Service1 = "service-1" :> ProdProxy.Api
 type Service2 = "service-2" :> ProdProxy.Api
+type Service3 = "service-3" :> ProdProxy.Api
 
 
 type FullApi = Hello.Api
   :<|> Service1
   :<|> Service2
+  :<|> Service3
   :<|> Monitors.Api
   :<|> Auth.UserAuthApi
 
@@ -94,10 +100,10 @@ exampleStatus :: Hello.Runtime -> Monitors.Runtime -> IO ExampleStatus
 exampleStatus hRt mRt = do
   ExampleStatus
     <$> Monitors.readRegistrations mRt
-    <*> Hello.readDiscoveredHosts hRt
+    <*> Hello.readDiscoveredHosts1 hRt
 
 hasFoundHostsReadiness :: Hello.Runtime -> IO Readiness
-hasFoundHostsReadiness = fmap adapt . Hello.readDiscoveredHosts
+hasFoundHostsReadiness = fmap adapt . Hello.readDiscoveredHosts1
   where
     adapt :: [Discovery.Host] -> Readiness
     adapt [] = Ill $ Set.fromList [Reason "no hosts found"]
@@ -150,7 +156,8 @@ main = do
   -- for demonstration purpose we initRuntime twice but there will be collisions on the metric name here
   -- most applications should either have a single ProdProxy runtime (possibly called with multiple 'ProdProxy.handle').
   service1Rt <- ProdProxy.initRuntime (ProdProxy.StaticBackend "httpbin.org" 80)
-  service2Rt <- ProdProxy.initRuntime (ProdProxy.DynamicBackend $ hostPortForDiscovered helloRt)
+  service2Rt <- ProdProxy.initRuntime (ProdProxy.DynamicBackend $ hostPortForDiscovered helloRt (Hello.discovery1 helloRt) "dyncioccio")
+  service3Rt <- ProdProxy.initRuntime (ProdProxy.DynamicBackend $ hostPortForDiscovered helloRt (Hello.discovery2 helloRt) "service3")
 
   healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime logHealth
   init <- initialize healthRt
@@ -164,18 +171,29 @@ main = do
         (Hello.serve helloRt
          :<|> ProdProxy.handle service1Rt
          :<|> ProdProxy.handle service2Rt
+         :<|> ProdProxy.handle service3Rt
          :<|> Monitors.handle monitorsRt
          :<|> Auth.handleUserAuth authRt
         )
         (Proxy @FullApi)
         (Auth.authServerContext authRt)
 
-hostPortForDiscovered :: Hello.Runtime -> ProdProxy.LookupHostPort
-hostPortForDiscovered helloRt =
-    ProdProxy.firstHealthy healthyBackends `ProdProxy.fallback` ProdProxy.randomBackend ioBackends
+hostPortForDiscovered :: Hello.Runtime -> Discovery.Discovery [Text] -> Healthcheck.Namespace -> ProdProxy.LookupHostPort
+hostPortForDiscovered helloRt disc ns =
+    ProdProxy.toLookup ((healthy <|> ProdProxy.lookup fallback <|> ProdProxy.lookup nobackend) <* countAll)
   where
-    healthyBackends = Hello.healthchecks helloRt
-    ioBackends = adapt <$> Discovery.readCurrent (Hello.discovery helloRt)
+    countAll :: ProdProxy.R ()
+    countAll = ProdProxy.io $ Prometheus.incCounter (Hello.routedQueries . Hello.counters $ helloRt)
+
+    healthy :: ProdProxy.R (ProdProxy.Host, ProdProxy.Port)
+    healthy = fmap ProdProxy.pickHealthy (ProdProxy.io healthcheckedBackends) >>= ProdProxy.shuffle >>= ProdProxy.safeHead
+
+    nobackend = ProdProxy.countWith (Hello.nobackendProxiedQueries . Hello.counters $ helloRt) (ProdProxy.noBackend)
+
+    fallback = ProdProxy.countWith (Hello.fallbackProxiedQueries . Hello.counters $ helloRt) (ProdProxy.randomBackend ioBackends)
+    hcs = Hello.healthchecks helloRt
+    healthcheckedBackends = Healthcheck.withSpace hcs ns Healthcheck.readBackgroundChecks
+    ioBackends = adapt <$> Discovery.readCurrent disc
     adapt (Discovery.Found _ hps) = fmap toHP hps
     adapt _ = []
     toHP h = (Text.encodeUtf8 h, 80)
