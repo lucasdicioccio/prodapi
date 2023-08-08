@@ -10,6 +10,8 @@ import Network.Wai.Handler.Warp as Warp
 import Network.Wai.Middleware.RequestLogger as RequestLogger
 
 import Control.Applicative ((<|>))
+import Control.Monad (when)
+import qualified Data.Map as Map
 import Data.Function ((&))
 import Data.Text (Text)
 import Data.Aeson (ToJSON(..))
@@ -26,6 +28,7 @@ import qualified Prod.UserAuth.Base as Auth
 import qualified Prod.Discovery as Discovery
 import qualified Prod.Healthcheck as Healthcheck
 import qualified Prod.Proxy as ProdProxy
+import qualified Prod.Proxy.MultiApp as MultiApp
 import Prod.Tracer (Tracer(..), choose, tracePrint, traceHPrint, traceHPut, encodeJSON, pulls)
 
 import qualified Data.Text.Encoding as Text
@@ -42,21 +45,18 @@ import System.IO (stdout, stderr)
 import qualified Paths_prodapi
 
 -- simulate backend services
-type Service1 = "service-1" :> ProdProxy.Api
-type Service2 = "service-2" :> ProdProxy.Api
-type Service3 = "service-3" :> ProdProxy.Api
+type ProxiedServiceApi = "proxied" :> ProdProxy.Api
 
 
 type FullApi = Hello.Api
-  :<|> Service1
-  :<|> Service2
-  :<|> Service3
+  :<|> ProxiedServiceApi
   :<|> Monitors.Api
   :<|> Auth.UserAuthApi
 
 data ExampleStatus = ExampleStatus
   { registrations :: [Monitors.Registration]
   , hosts :: [Discovery.Host]
+  , summaries :: Map.Map Healthcheck.Namespace Healthcheck.SummaryMap
   } deriving (Generic)
 instance ToJSON ExampleStatus
 instance ToHtml ExampleStatus where
@@ -64,7 +64,7 @@ instance ToHtml ExampleStatus where
   toHtmlRaw = renderStatus
 
 renderStatus :: forall m. (Monad m) => ExampleStatus -> HtmlT m ()
-renderStatus (ExampleStatus regs hosts) = div_ $ do
+renderStatus (ExampleStatus regs hosts checks) = div_ $ do
     h4_ "example status"
     p_ $ toHtml $ "registrations (" <> (show $ length regs) <> ")"
     ul_ $ do
@@ -81,6 +81,10 @@ renderStatus (ExampleStatus regs hosts) = div_ $ do
     h4_ "discovered hosts"
     ul_ $ do
       traverse_ renderHost hosts
+
+    h4_ "healthchecked hosts"
+    ul_ $ do
+      traverse_ renderNamespacedChecks $ Map.toList checks
   where
     renderRegistration :: Monitors.Registration -> HtmlT m ()
     renderRegistration (Monitors.Registration reg) = li_ $ do
@@ -96,11 +100,46 @@ renderStatus (ExampleStatus regs hosts) = div_ $ do
     renderHost :: Discovery.Host -> HtmlT m ()
     renderHost txt = li_ $ p_ $ toHtml txt
 
+    renderNamespacedChecks :: (Healthcheck.Namespace, Healthcheck.SummaryMap) -> HtmlT m ()
+    renderNamespacedChecks (ns,cs) =
+      ul_ $ do
+        p_ $ toHtml ns
+        renderSummaryMap cs
+
+    renderSummaryMap :: Healthcheck.SummaryMap -> HtmlT m ()
+    renderSummaryMap cs =
+      ul_ $ do
+        traverse_ renderHealthCheckResult $ Map.toList cs
+
+    renderHealthCheckResult :: ((Healthcheck.Host, Healthcheck.Port), Healthcheck.CheckSummary) -> HtmlT m ()
+    renderHealthCheckResult ((h,p),s) =
+      li_ $ do
+        div_ $ do
+          p_ $ do
+            toHtml h
+            toHtml (":" :: Text)
+            toHtml (show p)
+          p_ $ do
+            renderCheckSummary s
+
+    renderCheckSummary :: Healthcheck.CheckSummary -> HtmlT m ()
+    renderCheckSummary s = do
+      when (Healthcheck.healthChecked s) $ do
+        p_ "healthchecked"
+        when (Healthcheck.recentlyHealthy s) $ do
+          p_ "healthy"
+        when (Healthcheck.neverHealthy s) $ do
+          p_ "never-healthy"
+      when (not $ Healthcheck.healthChecked s) $ do
+        p_ "insufficient healthchecks"
+
+
 exampleStatus :: Hello.Runtime -> Monitors.Runtime -> IO ExampleStatus
 exampleStatus hRt mRt = do
   ExampleStatus
     <$> Monitors.readRegistrations mRt
     <*> Hello.readDiscoveredHosts1 hRt
+    <*> Healthcheck.readSpaces (Hello.healthchecks hRt)
 
 hasFoundHostsReadiness :: Hello.Runtime -> IO Readiness
 hasFoundHostsReadiness = fmap adapt . Hello.readDiscoveredHosts1
@@ -161,22 +200,21 @@ main = do
 
   healthRt <- Health.withReadiness (hasFoundHostsReadiness helloRt) <$> Prod.alwaysReadyRuntime logHealth
   init <- initialize healthRt
+  let fullApp proxiedRt = appWithContext
+                    init
+                    (exampleStatus helloRt monitorsRt)
+                    (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection "metrics.js")
+                    (Hello.serve helloRt
+                     :<|> ProdProxy.handle proxiedRt
+                     :<|> Monitors.handle monitorsRt
+                     :<|> Auth.handleUserAuth authRt
+                    )
+                    (Proxy @FullApi)
+                    (Auth.authServerContext authRt)
   Warp.run
     7708
     $ RequestLogger.logStdoutDev
-    $ appWithContext
-        init
-        (exampleStatus helloRt monitorsRt)
-        (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection "metrics.js")
-        (Hello.serve helloRt
-         :<|> ProdProxy.handle service1Rt
-         :<|> ProdProxy.handle service2Rt
-         :<|> ProdProxy.handle service3Rt
-         :<|> Monitors.handle monitorsRt
-         :<|> Auth.handleUserAuth authRt
-        )
-        (Proxy @FullApi)
-        (Auth.authServerContext authRt)
+    $ MultiApp.routeApplication (Map.fromList [("httpbin.org",fullApp service1Rt),("dyncioccio.localhost",fullApp service2Rt)]) (fullApp service3Rt)
 
 hostPortForDiscovered :: Hello.Runtime -> Discovery.Discovery [Text] -> Healthcheck.Namespace -> ProdProxy.LookupHostPort
 hostPortForDiscovered helloRt disc ns =

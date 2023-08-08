@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Prod.Healthcheck where
 
 import Control.Monad (void, (>=>))
 import Control.Concurrent (threadDelay)
+import Data.Aeson (ToJSON(..),FromJSON(..))
 import qualified Data.Either as Either
 import Data.Foldable (traverse_)
 import Data.Map (Map)
@@ -12,6 +14,7 @@ import Data.Time.Clock
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Proxy (Proxy(..))
+import GHC.Generics (Generic)
 
 import qualified Prometheus as Prometheus
 import Prod.Tracer (Tracer, contramap)
@@ -36,7 +39,9 @@ data Track
 data Check
   = Success UTCTime Readiness
   | Failed UTCTime Error
-  deriving Show
+  deriving (Show,Generic)
+instance ToJSON Check
+instance FromJSON Check
 
 resultTime :: Check -> UTCTime
 resultTime (Success t _) = t
@@ -63,7 +68,9 @@ data CheckSummary
   { lastReady    :: Maybe Check
   , recentChecks :: [Either Error Check]
   }
-  deriving Show
+  deriving (Show,Generic)
+instance ToJSON CheckSummary
+instance FromJSON CheckSummary
 
 -- | Predicate to tell if a Summary contains a long-enough check history to be considered.
 healthChecked :: CheckSummary -> Bool
@@ -284,6 +291,11 @@ initRuntime tracer = do
   manager <- newManager defaultManagerSettings
   cntrs <- newCounters
   pure $ Runtime cntrs manager tracer r
+
+readSpaces :: Runtime -> IO (Map Namespace SummaryMap)
+readSpaces rt = do
+  r <- readIORef . spaces $ rt
+  traverse readBackgroundChecks r
 
 registerSpace :: Runtime -> Namespace -> IO Space
 registerSpace rt ns = withSpace rt ns pure
