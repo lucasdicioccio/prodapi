@@ -1,19 +1,22 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Prod.UserAuth.Backend where
 
 import Control.Monad ((<=<))
+import Data.Maybe (catMaybes)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Database.PostgreSQL.Simple (Connection, Only (..), execute, query, rollback, formatQuery)
 import Database.PostgreSQL.Simple.SqlQQ (sql)
 import Prod.UserAuth.Base
-import Prod.UserAuth.Runtime (Runtime, tokenValidityDuration, withConn, traceTransaction, trace)
+import Prod.UserAuth.Runtime (Runtime, augmentSession, augmentWhoAmI, tokenValidityDuration, withConn, traceTransaction, trace)
 import Prod.UserAuth.Trace
 
-registerIO :: Runtime -> RegistrationRequest -> IO RegistrationResult
+
+registerIO :: Runtime a -> RegistrationRequest -> IO (RegistrationResult a)
 registerIO rt req = do
   withConn rt $ \conn -> do
     traceTransaction rt conn $ do
@@ -23,7 +26,11 @@ registerIO rt req = do
           nres <- newpass conn =<< mkNewPass uid
           if nres /= 1
             then rollback conn >> pure RegisterFailure
-            else pure $ RegisterSuccess (SessionData uid)
+            else do
+              info <- augmentSession rt conn (SessionData uid ())
+              case info of
+                Just extra -> pure $ RegisterSuccess (SessionData uid extra)
+                Nothing -> pure RegisterFailure
         _ -> pure RegisterFailure
   where
     emailV :: Text
@@ -34,7 +41,7 @@ registerIO rt req = do
 
 type User = Only UserId
 
-newuser :: Runtime -> Connection -> IO [User]
+newuser :: Runtime a -> Connection -> IO [User]
 newuser rt conn = do
     trace rt . Backend . SQLQuery =<< formatQuery conn q ()
     query conn q ()
@@ -48,7 +55,7 @@ newuser rt conn = do
 
 type Email = Text
 
-finduser :: Runtime -> Connection -> Email -> IO [User]
+finduser :: Runtime a -> Connection -> Email -> IO [User]
 finduser rt conn email = do
     trace rt . Backend . SQLQuery =<< formatQuery conn q (Only email)
     query conn q (Only email)
@@ -61,7 +68,7 @@ finduser rt conn email = do
         AND enabled
     |]
 
-finduidMail :: Runtime -> Connection -> UserId -> IO [Only Email]
+finduidMail :: Runtime a -> Connection -> UserId -> IO [Only Email]
 finduidMail rt conn uid = do
    trace rt . Backend . SQLQuery =<< formatQuery conn q (Only uid)
    query conn q (Only uid)
@@ -72,6 +79,7 @@ finduidMail rt conn uid = do
       FROM passwords
       WHERE identity_id = ?
         AND enabled
+      LIMIT 1
     |]
 
 data SetPassword
@@ -112,17 +120,21 @@ resetpass conn pass = execute conn q (plainV, uidV, emailV)
           AND (email = ?)
       |]
 
-loginIO :: Runtime -> LoginAttempt -> IO LoginResult
+loginIO :: Runtime info -> LoginAttempt -> IO (LoginResult info)
 loginIO rt attempt = withConn rt (\conn -> login rt conn attempt)
 
-login :: Runtime -> Connection -> LoginAttempt -> IO LoginResult
+login :: forall info. Runtime info -> Connection -> LoginAttempt -> IO (LoginResult info)
 login rt conn attempt = do
     trace rt . Backend . SQLQuery =<< formatQuery conn q (plainV, emailV)
-    toResult <$> query conn q (plainV, emailV)
+    toResult conn =<< query conn q (plainV, emailV)
   where
-    toResult :: [(UserId, Bool)] -> LoginResult
-    toResult [(uid, True)] = LoginSuccess (SessionData uid)
-    toResult _ = LoginFailed
+    toResult :: Connection -> [(UserId, Bool)] -> IO (LoginResult info)
+    toResult conn [(uid, True)] = do
+      info <- augmentSession rt conn (SessionData uid ())
+      case info of
+        Just extra -> pure $ LoginSuccess (SessionData uid extra)
+        Nothing -> pure LoginFailed
+    toResult _ _ = pure LoginFailed
     plainV = plain (attempt :: LoginAttempt)
     emailV = email (attempt :: LoginAttempt)
     q =
@@ -132,7 +144,6 @@ login rt conn attempt = do
       FROM passwords
       WHERE email = ?
         AND enabled
-      LIMIT 1
     |]
 
 data NewRecovery
@@ -193,15 +204,20 @@ invalidaterecovery conn check = execute conn q (Only uidV)
           AND (used_at IS NULL)
       |]
 
-whoAmIQueryIO :: Runtime -> UserId -> IO [WhoAmI]
+whoAmIQueryIO :: forall info. Runtime info -> UserId -> IO [WhoAmI info]
 whoAmIQueryIO rt uid = do
   withConn rt $ \conn -> do
-    fmap unwrapmail <$> finduidMail rt conn uid
+    emails <- finduidMail rt conn uid
+    catMaybes <$> traverse (unwrapmail conn) emails
   where
-    unwrapmail :: Only Email -> WhoAmI
-    unwrapmail (Only pass) = WhoAmI pass
+    unwrapmail :: Connection -> Only Email -> IO (Maybe (WhoAmI info))
+    unwrapmail conn (Only eml) = do
+      info <- augmentWhoAmI rt conn (WhoAmI eml uid)
+      case info of
+        Just extra -> pure $ Just $ WhoAmI eml extra
+        Nothing -> pure Nothing
 
-recoveryRequestIO :: Runtime -> RecoveryRequest -> IO [Token]
+recoveryRequestIO :: Runtime a -> RecoveryRequest -> IO [Token]
 recoveryRequestIO rt req = do
   withConn rt $ \conn -> do
     traceTransaction rt conn $ do
@@ -213,7 +229,7 @@ recoveryRequestIO rt req = do
     emailV :: Text
     emailV = email (req :: RecoveryRequest)
 
-applyRecoveryIO :: Runtime -> ApplyRecoveryRequest -> IO RecoveryResult
+applyRecoveryIO :: Runtime a -> ApplyRecoveryRequest -> IO RecoveryResult
 applyRecoveryIO rt req = do
   withConn rt $ \conn -> do
     traceTransaction rt conn $ do

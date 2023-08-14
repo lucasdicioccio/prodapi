@@ -22,7 +22,7 @@ import Servant.Server.Experimental.Auth
   )
 import Web.Cookie (parseCookies)
 
-authHandler :: Runtime -> AuthHandler Request UserAuthInfo
+authHandler :: Runtime a -> AuthHandler Request UserAuthInfo
 authHandler runtime = mkAuthHandler go
   where
     go req = do
@@ -32,12 +32,12 @@ authHandler runtime = mkAuthHandler go
       traceJWT runtime mJwt
       pure $ UserAuthInfo mJwt
 
-authServerContext :: Runtime -> Context (AuthHandler Request UserAuthInfo ': '[])
+authServerContext :: Runtime a -> Context (AuthHandler Request UserAuthInfo ': '[])
 authServerContext runtime =
   authHandler runtime :. EmptyContext
 
 withLoginCookieVerified ::
-  Runtime ->
+  Runtime info ->
   Maybe LoggedInCookie ->
   (JWT VerifiedJWT -> Handler a) ->
   Handler a
@@ -52,7 +52,7 @@ withLoginCookieVerified runtime cookie act = do
       mJwt
 
 withOptionalLoginCookieVerified ::
-  Runtime ->
+  Runtime info ->
   Maybe LoggedInCookie ->
   (Maybe (JWT VerifiedJWT) -> Handler a) ->
   Handler a
@@ -61,10 +61,10 @@ withOptionalLoginCookieVerified runtime cookie act = do
   traceOptionalVerification runtime (isJust mJwt)
   act mJwt
 
-authorized :: Runtime -> UserAuthInfo -> (UserId -> Handler a) -> Handler a
+authorized :: Runtime info -> UserAuthInfo -> (UserId -> Handler a) -> Handler a
 authorized rt auth act =
   limited rt auth (traceDisallowed rt >> throwError err401) act
 
-limited :: Runtime -> UserAuthInfo -> (Handler a) -> (UserId -> Handler a) -> Handler a
+limited :: Runtime info -> UserAuthInfo -> (Handler a) -> (UserId -> Handler a) -> Handler a
 limited rt auth fallback act =
   maybe (traceLimited rt >> fallback) (\uid -> traceAllowed rt >> act uid) (authUserId auth)

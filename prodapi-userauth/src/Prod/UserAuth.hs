@@ -45,7 +45,7 @@ import Servant.Server
 
 import Lucid
 
-handleUserAuth :: Runtime -> Server UserAuthApi
+handleUserAuth :: Runtime info -> Server (UserAuthApi info)
 handleUserAuth runtime =
   handleEchoCookieClaims runtime
     :<|> handleWhoAmI runtime
@@ -56,12 +56,12 @@ handleUserAuth runtime =
     :<|> handleApplyRecovery runtime
     :<|> handleHello
 
-handleEchoCookieClaims :: Runtime -> Maybe LoggedInCookie -> Handler JWTClaimsSet
+handleEchoCookieClaims :: Runtime info -> Maybe LoggedInCookie -> Handler JWTClaimsSet
 handleEchoCookieClaims runtime cookie = do
   inc echoes "requested" (counters runtime)
   withLoginCookieVerified runtime cookie (pure . claims)
 
-handleWhoAmI :: Runtime -> Maybe LoggedInCookie -> Handler [WhoAmI]
+handleWhoAmI :: Runtime info -> Maybe LoggedInCookie -> Handler [WhoAmI info]
 handleWhoAmI runtime cookie = do
   inc whoamis "requested" (counters runtime)
   withLoginCookieVerified runtime cookie $ \jwt -> do
@@ -86,9 +86,9 @@ handleCleanCookie =
     addHeader (LoggedInCookie "logged-off") ()
 
 handleRegister ::
-  Runtime ->
+  Runtime info ->
   RegistrationRequest ->
-  Handler (Headers '[Header "Set-Cookie" LoggedInCookie] RegistrationResult)
+  Handler (Headers '[Header "Set-Cookie" LoggedInCookie] (RegistrationResult info))
 handleRegister runtime req = do
   inc registrations "requested" (counters runtime)
   res <- liftIO $ registerIO runtime req
@@ -97,15 +97,15 @@ handleRegister runtime req = do
   inc registrations "ok" (counters runtime)
   pure $ withheaders res
   where
-    wrapHeader :: RegistrationResult -> IO (a -> Headers '[Header "Set-Cookie" LoggedInCookie] a)
+    wrapHeader :: RegistrationResult info -> IO (a -> Headers '[Header "Set-Cookie" LoggedInCookie] a)
     wrapHeader res = case res of
       RegisterFailure -> pure noHeader
       RegisterSuccess dat -> addHeader <$> makeLoggedInCookie runtime (userId dat)
 
 handleLogin ::
-  Runtime ->
+  Runtime info ->
   LoginAttempt ->
-  Handler (Headers '[Header "Set-Cookie" LoggedInCookie] LoginResult)
+  Handler (Headers '[Header "Set-Cookie" LoggedInCookie] (LoginResult info))
 handleLogin runtime attempt = do
   inc logins "requested" (counters runtime)
   res <- liftIO $ loginIO runtime attempt
@@ -113,7 +113,7 @@ handleLogin runtime attempt = do
   withheaders <- liftIO $ wrapHeader res
   pure $ withheaders res
   where
-    wrapHeader :: LoginResult -> IO (a -> Headers '[Header "Set-Cookie" LoggedInCookie] a)
+    wrapHeader :: LoginResult info -> IO (a -> Headers '[Header "Set-Cookie" LoggedInCookie] a)
     wrapHeader res = case res of
       LoginFailed -> do
         inc logins "ko" (counters runtime)
@@ -122,7 +122,7 @@ handleLogin runtime attempt = do
         inc logins "ok" (counters runtime)
         addHeader <$> makeLoggedInCookie runtime (userId dat)
 
-handleRecoveryRequest :: Runtime -> RecoveryRequest -> Handler RecoveryRequestNotification
+handleRecoveryRequest :: Runtime info -> RecoveryRequest -> Handler RecoveryRequestNotification
 handleRecoveryRequest runtime req = do
   inc recoveryRequests "requested" (counters runtime)
   xs <- liftIO $ recoveryRequestIO runtime req
@@ -132,7 +132,7 @@ handleRecoveryRequest runtime req = do
   traceRecoveryRequest runtime req res
   pure res
 
-handleApplyRecovery :: Runtime -> ApplyRecoveryRequest -> Handler RecoveryResult
+handleApplyRecovery :: Runtime info -> ApplyRecoveryRequest -> Handler RecoveryResult
 handleApplyRecovery runtime req = do
   inc recoveryApplied "requested" (counters runtime)
   res <- liftIO $ applyRecoveryIO runtime req

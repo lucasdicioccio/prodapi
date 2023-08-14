@@ -24,7 +24,7 @@ authUserId (UserAuthInfo mjwt) = do
     (Number nid) -> pure (truncate nid :: UserId)
     _ -> Nothing
 
-makeLoggedInCookie :: Runtime -> UserId -> IO LoggedInCookie
+makeLoggedInCookie :: Runtime a -> UserId -> IO LoggedInCookie
 makeLoggedInCookie runtime uid = do
   let claims = Map.fromList [("user-id", (Number $ fromIntegral uid))]
   pure $ LoggedInCookie $

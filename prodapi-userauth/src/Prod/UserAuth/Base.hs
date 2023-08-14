@@ -57,13 +57,14 @@ instance ToHttpApiData LoggedInCookie where
   toUrlPiece (LoggedInCookie txt) =
     mconcat [loginjwtCookiePrefix, txt, "; Path=/; SameSite=Strict; HttpOnly"]
 
-data WhoAmI
+data WhoAmI info
   = WhoAmI
       { email :: Text
+      , info :: info
       }
   deriving (Generic)
 
-instance ToJSON WhoAmI
+instance ToJSON info => ToJSON (WhoAmI info)
 
 data RegistrationRequest
   = RegistrationRequest
@@ -75,18 +76,19 @@ data RegistrationRequest
 instance FromJSON RegistrationRequest
 instance FromForm RegistrationRequest
 
-data RegistrationResult = RegisterSuccess SessionData | RegisterFailure
+data RegistrationResult a = RegisterSuccess (SessionData a) | RegisterFailure
   deriving (Generic)
 
-instance ToJSON RegistrationResult
+instance ToJSON a => ToJSON (RegistrationResult a)
 
-data SessionData
+data SessionData a
   = SessionData
       { userId :: UserId
+      , info :: a
       }
   deriving (Generic)
 
-instance ToJSON SessionData
+instance ToJSON a => ToJSON (SessionData a)
 
 type UserId = Int64
 
@@ -121,7 +123,7 @@ data LoginAttempt
 instance FromJSON LoginAttempt
 instance FromForm LoginAttempt
 
-data LoginResult = LoginSuccess SessionData | LoginFailed
+data LoginResult a = LoginSuccess (SessionData a) | LoginFailed
   deriving (Generic)
 
-instance ToJSON LoginResult
+instance ToJSON a => ToJSON (LoginResult a)

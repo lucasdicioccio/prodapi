@@ -5,17 +5,17 @@ import Data.ByteString (ByteString)
 import Prod.UserAuth.Base
 import Web.JWT
 
-data Track =
-    Behaviour BehaviourTrack
+data Track info =
+    Behaviour (BehaviourTrack info)
   | Bearer JwtTrack
   | Backend BackendTrack
 
 -- | Track enough information to study potentially-malicious activities.
-data BehaviourTrack =
-    Attempt LoginAttempt LoginResult
+data BehaviourTrack info =
+    Attempt LoginAttempt (LoginResult info)
   | Verification Bool
   | OptionalVerification Bool
-  | Registration RegistrationRequest RegistrationResult
+  | Registration RegistrationRequest (RegistrationResult info)
   | Recovery RecoveryRequest RecoveryRequestNotification
   | ApplyRecovery ApplyRecoveryRequest RecoveryResult
 

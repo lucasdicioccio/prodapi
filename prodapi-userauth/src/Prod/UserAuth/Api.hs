@@ -17,12 +17,12 @@ type CookieProtect = AuthProtect "prod-user-auth"
 
 type instance AuthServerData (AuthProtect "prod-user-auth") = UserAuthInfo
 
-type UserAuthApi =
+type UserAuthApi a =
   EchoCookieClaimsApi
-    :<|> WhoAmIApi
+    :<|> WhoAmIApi a
     :<|> CleanCookieApi
-    :<|> RegisterApi
-    :<|> LoginApi
+    :<|> RegisterApi a
+    :<|> LoginApi a
     :<|> RequestRecoveryApi
     :<|> ApplyRecoveryApi
     :<|> HelloProtectedApi
@@ -34,12 +34,12 @@ type EchoCookieClaimsApi =
     :> Header "Cookie" LoggedInCookie
     :> Get '[JSON] JWTClaimsSet
 
-type WhoAmIApi =
+type WhoAmIApi a =
   Summary "prints user identities for a cookie"
     :> "user-auth"
     :> "whoami"
     :> Header "Cookie" LoggedInCookie
-    :> Get '[JSON] [WhoAmI]
+    :> Get '[JSON] [WhoAmI a]
 
 type CleanCookieApi =
   Summary "deletes the cookie"
@@ -47,19 +47,19 @@ type CleanCookieApi =
     :> "clean-cookie"
     :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] ())
 
-type RegisterApi =
+type RegisterApi a =
   Summary "register a new user"
     :> "user-auth"
     :> "registration"
     :> ReqBody '[FormUrlEncoded, JSON] RegistrationRequest
-    :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] RegistrationResult)
+    :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] (RegistrationResult a))
 
-type LoginApi =
+type LoginApi a =
   Summary "login as a user"
     :> "user-auth"
     :> "login"
     :> ReqBody '[FormUrlEncoded, JSON] LoginAttempt
-    :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] LoginResult)
+    :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] (LoginResult a))
 
 type RequestRecoveryApi =
   Summary "request an out-of-band password recovery"
