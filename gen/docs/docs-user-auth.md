@@ -42,7 +42,7 @@ Up to date
 - some claims set with issuer etc. (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-{"sub":"...","iss":"issuer"}
+{"iss":"issuer","sub":"..."}
 ```
 
 ## GET /user-auth/hello
@@ -104,7 +104,7 @@ email=foo%40example.com&plain=secret
 - sucessful login with user id 1234 (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-{"tag":"LoginSuccess","contents":{"userId":1234}}
+{"contents":{"info":"the robot","userId":1234},"tag":"LoginSuccess"}
 ```
 
 - failed login (`application/json;charset=utf-8`, `application/json`):
@@ -129,13 +129,13 @@ email=foo%40example.com&plain=secret
 - apply a token received out of bound (`application/x-www-form-urlencoded`):
 
 ```
-email=foo%40example.com&token=secret%20token%20received%20out%20of%20bound&plain=new-password
+email=foo%40example.com&plain=new-password&token=secret%20token%20received%20out%20of%20bound
 ```
 
 - apply a token received out of bound (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-{"email":"foo@example.com","token":"secret token received out of bound","plain":"new-password"}
+{"email":"foo@example.com","plain":"new-password","token":"secret token received out of bound"}
 ```
 
 ### Response:
@@ -157,7 +157,7 @@ email=foo%40example.com&token=secret%20token%20received%20out%20of%20bound&plain
 - failed to change pass (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-{"tag":"RecoveryFailed","contents":"some reason"}
+{"contents":"some reason","tag":"RecoveryFailed"}
 ```
 
 ## POST /user-auth/recovery/request
@@ -198,7 +198,7 @@ email=foo%40example.com
 - recovery request notification valid for 60minutes (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-{"email":"foo@example.com","minutes":60}
+{"email":"foo@example.com","minutes":60,"token":"random-bytes"}
 ```
 
 ## POST /user-auth/registration
@@ -239,7 +239,7 @@ email=foo%40example.com&plain=my%20desired%20pass
 - successful registration with user id 1234 (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-{"tag":"RegisterSuccess","contents":{"userId":1234}}
+{"contents":{"info":"the robot","userId":1234},"tag":"RegisterSuccess"}
 ```
 
 - failed registration (`application/json;charset=utf-8`, `application/json`):
@@ -276,13 +276,13 @@ email=foo%40example.com&plain=my%20desired%20pass
 - i am a robot (`application/json;charset=utf-8`, `application/json`):
 
 ```javascript
-[{"email":"a robot"}]
+[{"email":"a robot","info":"with some metal head"}]
 ```
 
 - i am a robot, i am a robot (`application/json;charset=utf-8`):
 
 ```javascript
-[{"email":"a robot"},{"email":"a robot"}]
+[{"email":"a robot","info":"with some metal head"},{"email":"a robot","info":"with some metal head"}]
 ```
 
 

@@ -6,6 +6,10 @@ import Data.Proxy
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as ByteString
 
+instance ToSample CORSAllowOrigin where
+  toSamples _ =
+     []
+
 instance ToSample PrometheusResult where
   toSamples _ =
      [ ("some prometheus example", PrometheusResult promdoc) ]

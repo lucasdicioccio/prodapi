@@ -30,9 +30,9 @@ instance ToSample () where
   toSamples _ = [ ("the unit type, representing an absence of return value", ()) ]
 instance ToSample Text where
   toSamples _ = [ ("some arbitrary text", "lorem ipsum") ]
-instance ToSample WhoAmI where
-  toSamples _ = [ ("i am a robot", WhoAmI "a robot" )
-                , ("i am a girafe", WhoAmI "a girafe" )
+instance ToSample (WhoAmI Text) where
+  toSamples _ = [ ("i am a robot", WhoAmI "a robot" "with some metal head")
+                , ("i am a girafe", WhoAmI "a girafe" "with some fur")
                 ]
 
 instance ToSample LoggedInCookie where
@@ -42,14 +42,14 @@ instance ToSample LoggedInCookie where
 
 instance ToSample RegistrationRequest where
   toSamples _ = [ ("some registration", RegistrationRequest "foo@example.com" "my desired pass" ) ]
-instance ToSample RegistrationResult where
-  toSamples _ = [ ("successful registration with user id 1234", RegisterSuccess (SessionData 1234)) 
+instance ToSample (RegistrationResult Text) where
+  toSamples _ = [ ("successful registration with user id 1234", RegisterSuccess (SessionData 1234 "the robot")) 
                 , ("failed registration", RegisterFailure)
                 ]
 instance ToSample LoginAttempt where
   toSamples _ = [ ("temptative login", LoginAttempt "foo@example.com" "secret") ]
-instance ToSample LoginResult where
-  toSamples _ = [ ("sucessful login with user id 1234", LoginSuccess (SessionData 1234) ) 
+instance ToSample (LoginResult Text) where
+  toSamples _ = [ ("sucessful login with user id 1234", LoginSuccess (SessionData 1234 "the robot") ) 
                 , ("failed login", LoginFailed)
                 ]
 instance ToSample RecoveryRequest where
@@ -70,5 +70,7 @@ instance HasDocs api => HasDocs (CookieProtect :> api) where
   docsFor _ (endpoint, action) docopts =
      docsFor (Proxy @api) (endpoint, action) docopts
 
+type UserAuthApiForDocs = UserAuthApi Text
+
 run :: IO ()
-run = putStrLn $ markdown $ docs (Proxy @UserAuthApi)
+run = putStrLn $ markdown $ docs (Proxy @UserAuthApiForDocs)
