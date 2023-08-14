@@ -40,6 +40,11 @@ newtype Registration = Registration { registration :: Text }
   deriving newtype (ToJSON, FromJSON, FromHttpApiData)
   deriving anyclass (FromForm)
 
+newtype MyUserInfo = MyUserInfo { userInfo :: Text }
+  deriving (Show, Eq, Ord, Generic)
+  deriving newtype (ToJSON, FromJSON, FromHttpApiData)
+  deriving anyclass (FromForm)
+
 type DeRegistration = Int
 
 data Track = BackgroundPing PingTarget (Prod.Background.Track (Maybe CommandOutput))
@@ -53,13 +58,13 @@ data Runtime = Runtime {
     pings :: IORef [(Registration, BackgroundVal (Maybe CommandOutput))]
   , counters :: Counters
   , tracer :: T
-  , authRt :: Auth.Runtime
+  , authRt :: Auth.Runtime MyUserInfo
   }
 
 logRegistered :: Runtime -> Registration -> IO ()
 logRegistered rt = runTracer (tracer rt) . Registered
 
-initRuntime :: T -> Auth.Runtime -> IO Runtime
+initRuntime :: T -> Auth.Runtime MyUserInfo -> IO Runtime
 initRuntime tracer authRt = Runtime
   <$> newIORef []
   <*> newCounters

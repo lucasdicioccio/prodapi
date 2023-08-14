@@ -51,7 +51,7 @@ type ProxiedServiceApi = "proxied" :> ProdProxy.Api
 type FullApi = Hello.Api
   :<|> ProxiedServiceApi
   :<|> Monitors.Api
-  :<|> Auth.UserAuthApi
+  :<|> Auth.UserAuthApi Monitors.MyUserInfo
 
 data ExampleStatus = ExampleStatus
   { registrations :: [Monitors.Registration]
@@ -151,7 +151,7 @@ hasFoundHostsReadiness = fmap adapt . Hello.readDiscoveredHosts1
 logPrint :: Show a => Tracer IO a
 logPrint = Tracer print
 
-logUserAuth :: Tracer IO Auth.Track
+logUserAuth :: Tracer IO (Auth.Track Monitors.MyUserInfo)
 logUserAuth = Tracer f
   where
     f (Auth.Behaviour (Auth.Attempt _ Auth.LoginFailed)) = print $ "ua: login attempt failed"
@@ -190,7 +190,9 @@ main :: IO ()
 main = do
   _ <- BackgroundNetwork.complicatedNetworkOfBackgroundUpdates tracePrint
   helloRt <- Hello.initRuntime logPrint
-  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" (logUserAuth)
+  let augmentSession _ _ = pure $ Just $ Monitors.MyUserInfo "demo-info"
+  let augmentWhoAmI _ _ = pure $ Just $ Monitors.MyUserInfo "demo-whoami"
+  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" augmentSession augmentWhoAmI (logUserAuth)
   monitorsRt <- Monitors.initRuntime logMonitors authRt
   -- for demonstration purpose we initRuntime twice but there will be collisions on the metric name here
   -- most applications should either have a single ProdProxy runtime (possibly called with multiple 'ProdProxy.handle').
