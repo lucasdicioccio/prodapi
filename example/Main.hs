@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import Data.Function ((&))
 import Data.Text (Text)
 import Data.Aeson (ToJSON(..))
+import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Data.Proxy (Proxy(..))
 import Servant
@@ -170,6 +171,7 @@ logUserAuth = Tracer f
     f (Auth.Backend Auth.SQLTransaction) = print "ua: sql tx"
     f (Auth.Backend Auth.SQLRollback) = print "ua: sql tx"
     f (Auth.Backend (Auth.SQLQuery bs)) = print $ "ua: sql query" <> bs
+    f (Auth.Callbacks (Auth.AugmentCookie _)) = print $ "cb: cookie augmented"
 
 logHealth :: Tracer IO Health.Track
 logHealth = Tracer f
@@ -192,7 +194,8 @@ main = do
   helloRt <- Hello.initRuntime logPrint
   let augmentSession _ _ = pure $ Just $ Monitors.MyUserInfo "demo-info"
   let augmentWhoAmI _ _ = pure $ Just $ Monitors.MyUserInfo "demo-whoami"
-  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" augmentSession augmentWhoAmI (logUserAuth)
+  let augmentCookie _ = pure $ Right [("demo-roles", Aeson.toJSON ["superuser" :: Text])]
+  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" augmentSession augmentWhoAmI augmentCookie (logUserAuth)
   monitorsRt <- Monitors.initRuntime logMonitors authRt
   -- for demonstration purpose we initRuntime twice but there will be collisions on the metric name here
   -- most applications should either have a single ProdProxy runtime (possibly called with multiple 'ProdProxy.handle').
