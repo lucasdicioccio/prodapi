@@ -9,7 +9,6 @@ module Prod.UserAuth.Runtime
     augmentSession,
     AugmentWhoAmI,
     augmentWhoAmI,
-    AugmentWhoAmI,
     augmentLoggedInCookieClaims,
     AugmentCookieClaims,
     counters,

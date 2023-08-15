@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE StrictData #-}
@@ -34,9 +35,9 @@ registerIO rt req = do
         _ -> pure RegisterFailure
   where
     emailV :: Text
-    emailV = email (req :: RegistrationRequest)
+    emailV = req.email
     plainV :: Text
-    plainV = plain (req :: RegistrationRequest)
+    plainV = req.plain
     mkNewPass uid = pure $ SetPassword uid emailV plainV
 
 type User = Only UserId
@@ -93,9 +94,9 @@ data SetPassword
 newpass :: Connection -> SetPassword -> IO Int64
 newpass conn pass = execute conn q (emailV, plainV, uidV)
   where
-    emailV = email (pass :: SetPassword)
-    plainV = plain (pass :: SetPassword)
-    uidV = uid (pass :: SetPassword)
+    emailV = pass.email
+    plainV = pass.plain
+    uidV = pass.uid
     q =
       [sql|
       INSERT INTO passwords(email,enabled,hashed,salt,identity_id)
@@ -107,9 +108,9 @@ newpass conn pass = execute conn q (emailV, plainV, uidV)
 resetpass :: Connection -> SetPassword -> IO Int64
 resetpass conn pass = execute conn q (plainV, uidV, emailV)
   where
-    emailV = email (pass :: SetPassword)
-    plainV = plain (pass :: SetPassword)
-    uidV = uid (pass :: SetPassword)
+    emailV = pass.email
+    plainV = pass.plain
+    uidV = pass.uid
     q =
       [sql|
         UPDATE passwords
@@ -135,8 +136,8 @@ login rt conn attempt = do
         Just extra -> pure $ LoginSuccess (SessionData uid extra)
         Nothing -> pure LoginFailed
     toResult _ _ = pure LoginFailed
-    plainV = plain (attempt :: LoginAttempt)
-    emailV = email (attempt :: LoginAttempt)
+    plainV = attempt.plain
+    emailV = attempt.email
     q =
       [sql|
       SELECT identity_id
@@ -159,7 +160,7 @@ tokenValue (Only v) = v
 newrecovery :: Connection -> NewRecovery -> IO [Token]
 newrecovery conn recover = query conn q (Only uidV)
   where
-    uidV = uid (recover :: NewRecovery)
+    uidV = recover.uid
     q =
       [sql|
         INSERT INTO password_lost_request(timestamp,identity_id,token)
@@ -180,8 +181,8 @@ checkrecovery conn check =
     toResult :: [Only Bool] -> RecoveryResult
     toResult [Only True] = RecoverySuccess
     toResult _ = RecoveryFailed "invalid-checkrecovery-result"
-    uidV = uid (check :: CheckRecovery)
-    tokenV = token (check :: CheckRecovery)
+    uidV = check.uid
+    tokenV = check.token
     q =
       [sql|
         SELECT age(CURRENT_TIMESTAMP, timestamp) <= '? min'
@@ -195,7 +196,7 @@ checkrecovery conn check =
 invalidaterecovery :: Connection -> CheckRecovery -> IO Int64
 invalidaterecovery conn check = execute conn q (Only uidV)
   where
-    uidV = uid (check :: CheckRecovery)
+    uidV = check.uid
     q =
       [sql|
         UPDATE password_lost_request
@@ -227,7 +228,7 @@ recoveryRequestIO rt req = do
         _ -> pure []
   where
     emailV :: Text
-    emailV = email (req :: RecoveryRequest)
+    emailV = req.email
 
 applyRecoveryIO :: Runtime a -> ApplyRecoveryRequest -> IO RecoveryResult
 applyRecoveryIO rt req = do
@@ -249,10 +250,10 @@ applyRecoveryIO rt req = do
         _ -> pure $ RecoveryFailed "unfound user"
   where
     emailV :: Text
-    emailV = email (req :: ApplyRecoveryRequest)
+    emailV = req.email
     plainV :: Text
-    plainV = plain (req :: ApplyRecoveryRequest)
+    plainV = req.plain
     tokenV :: Text
-    tokenV = token (req :: ApplyRecoveryRequest)
+    tokenV = req.token
     mkCheckRecovery uid = pure $ CheckRecovery uid tokenV
     mkSetPass uid = pure $ SetPassword uid emailV plainV

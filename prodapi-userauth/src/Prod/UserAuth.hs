@@ -1,4 +1,4 @@
-{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Prod.UserAuth
   ( UserAuthApi,
@@ -138,7 +138,7 @@ handleRecoveryRequest runtime req = do
   xs <- liftIO $ recoveryRequestIO runtime req
   let token = case xs of [] -> "" ; (x:_) -> tokenValue x :: Text
   inc recoveryRequests "ok" (counters runtime)
-  let res = RecoveryRequestNotification (email (req :: RecoveryRequest)) tokenValidityDuration token
+  let res = RecoveryRequestNotification (req.email) tokenValidityDuration token
   traceRecoveryRequest runtime req res
   pure res
 
