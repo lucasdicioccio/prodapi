@@ -9,6 +9,9 @@ module Prod.UserAuth.Runtime
     augmentSession,
     AugmentWhoAmI,
     augmentWhoAmI,
+    AugmentWhoAmI,
+    augmentLoggedInCookieClaims,
+    AugmentCookieClaims,
     counters,
     secretstring,
     withConn,
@@ -26,16 +29,18 @@ module Prod.UserAuth.Runtime
     traceDisallowed,
     traceLimited,
     traceJWT,
+    traceAugmentCookie,
   )
 where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Aeson (Value)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Database.PostgreSQL.Simple (Connection, Only (..), close, connectPostgreSQL, execute, query, rollback, withTransaction)
-import Prod.UserAuth.Base (Minutes, SessionData, WhoAmI, UserId, LoginAttempt, LoginResult, RegistrationRequest, RegistrationResult, RecoveryRequest, RecoveryRequestNotification, ApplyRecoveryRequest, RecoveryResult)
+import Prod.UserAuth.Base (ErrorMessage, Minutes, SessionData, WhoAmI, UserId, LoginAttempt, LoginResult, RegistrationRequest, RegistrationResult, RecoveryRequest, RecoveryRequestNotification, ApplyRecoveryRequest, RecoveryResult, LoggedInCookie)
 import Prod.UserAuth.Counters (Counters (..), initCounters)
-import Prod.UserAuth.Trace (Track(..), BackendTrack(..), BehaviourTrack(..), JwtTrack(..))
+import Prod.UserAuth.Trace (Track(..), BackendTrack(..), BehaviourTrack(..), JwtTrack(..), CallbackTrack(..))
 import Prod.Tracer (Tracer(..))
 import Web.JWT
 
@@ -46,12 +51,15 @@ data Runtime info
         connstring :: !ByteString,
         augmentSession :: AugmentSession info,
         augmentWhoAmI :: AugmentWhoAmI info,
+        augmentLoggedInCookieClaims :: AugmentCookieClaims,
         tracer :: Tracer IO (Track info)
       }
 
 type AugmentSession info = Connection -> SessionData () -> IO (Maybe info)
 
 type AugmentWhoAmI info = Connection -> WhoAmI UserId -> IO (Maybe info)
+
+type AugmentCookieClaims = UserId -> IO (Either ErrorMessage [(Text, Value)])
 
 trace :: MonadIO m => Runtime a -> Track a -> m ()
 trace rt v = liftIO $ runTracer (tracer rt) $ v
@@ -61,15 +69,17 @@ initRuntime
   -> ByteString
   -> AugmentSession info
   -> AugmentWhoAmI info
+  -> AugmentCookieClaims
   -> Tracer IO (Track info)
   -> IO (Runtime info)
-initRuntime skret cstring augSession augWhoAmI tracer =
+initRuntime skret cstring augSession augWhoAmI augCookie tracer =
   Runtime
     <$> initCounters
     <*> pure skret
     <*> pure cstring
     <*> pure augSession
     <*> pure augWhoAmI
+    <*> pure augCookie
     <*> pure tracer
 
 withConn :: Runtime b -> (Connection -> IO a) -> IO a
@@ -121,6 +131,10 @@ traceLimited runtime =
 traceJWT :: MonadIO m => (Runtime a) -> Maybe (JWT (VerifiedJWT)) -> m ()
 traceJWT runtime jwt =
   liftIO $ trace runtime $ Bearer $ Extracted jwt
+
+traceAugmentCookie :: MonadIO m => (Runtime a) -> Either ErrorMessage LoggedInCookie -> m ()
+traceAugmentCookie runtime c =
+  liftIO $ trace runtime $ Callbacks $ AugmentCookie c
 
 tokenValidityDuration :: Minutes
 tokenValidityDuration = 30

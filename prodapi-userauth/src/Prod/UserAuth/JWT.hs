@@ -24,15 +24,18 @@ authUserId (UserAuthInfo mjwt) = do
     (Number nid) -> pure (truncate nid :: UserId)
     _ -> Nothing
 
-makeLoggedInCookie :: Runtime a -> UserId -> IO LoggedInCookie
+makeLoggedInCookie :: Runtime a -> UserId -> IO (Either ErrorMessage LoggedInCookie)
 makeLoggedInCookie runtime uid = do
-  let claims = Map.fromList [("user-id", (Number $ fromIntegral uid))]
-  pure $ LoggedInCookie $
-    encodeSigned
-      (hmacSecret $ secretstring runtime)
-      mempty
-      ( mempty
-          { iss = stringOrURI "jwt-app",
-            unregisteredClaims = ClaimsMap claims
-          }
-      )
+     fmap adapt <$> augmentLoggedInCookieClaims runtime uid
+  where
+    adapt extras =
+      let claims = Map.fromList $ mconcat [ [("user-id", (Number $ fromIntegral uid))] , extras ]
+      in LoggedInCookie $
+            encodeSigned
+              (hmacSecret $ secretstring runtime)
+              mempty
+              ( mempty
+                  { iss = stringOrURI "jwt-app",
+                    unregisteredClaims = ClaimsMap claims
+                  }
+              )

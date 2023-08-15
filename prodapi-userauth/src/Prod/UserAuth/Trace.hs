@@ -9,6 +9,7 @@ data Track info =
     Behaviour (BehaviourTrack info)
   | Bearer JwtTrack
   | Backend BackendTrack
+  | Callbacks CallbackTrack
 
 -- | Track enough information to study potentially-malicious activities.
 data BehaviourTrack info =
@@ -30,3 +31,7 @@ data BackendTrack =
   | SQLTransaction
   | SQLRollback
   | SQLQuery !ByteString
+
+-- | Track callback information.
+data CallbackTrack =
+    AugmentCookie (Either ErrorMessage LoggedInCookie)

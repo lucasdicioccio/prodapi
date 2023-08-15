@@ -127,3 +127,5 @@ data LoginResult a = LoginSuccess (SessionData a) | LoginFailed
   deriving (Generic)
 
 instance ToJSON a => ToJSON (LoginResult a)
+
+type ErrorMessage = Text

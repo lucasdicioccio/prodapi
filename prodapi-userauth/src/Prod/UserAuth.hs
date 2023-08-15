@@ -24,6 +24,7 @@ module Prod.UserAuth
     BehaviourTrack(..),
     BackendTrack(..),
     JwtTrack(..),
+    CallbackTrack(..),
   )
 where
 
@@ -37,7 +38,7 @@ import Prod.UserAuth.Backend
 import Prod.UserAuth.Base
 import Prod.UserAuth.HandlerCombinators
 import Prod.UserAuth.JWT
-import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, secretstring, tokenValidityDuration, withConn, traceAttempt, traceRegistration, traceRecoveryRequest, traceRecoveryApplication)
+import Prod.UserAuth.Runtime (Counters (..), Runtime, counters, initRuntime, secretstring, tokenValidityDuration, withConn, traceAttempt, traceRegistration, traceRecoveryRequest, traceRecoveryApplication, traceAugmentCookie)
 import Prod.UserAuth.Trace
 import qualified Prometheus as Prometheus
 import Servant
@@ -100,7 +101,12 @@ handleRegister runtime req = do
     wrapHeader :: RegistrationResult info -> IO (a -> Headers '[Header "Set-Cookie" LoggedInCookie] a)
     wrapHeader res = case res of
       RegisterFailure -> pure noHeader
-      RegisterSuccess dat -> addHeader <$> makeLoggedInCookie runtime (userId dat)
+      RegisterSuccess dat -> do
+        cookie <- makeLoggedInCookie runtime (userId dat)
+        traceAugmentCookie runtime cookie
+        case cookie of
+          Left _ -> pure noHeader
+          Right c -> pure $ addHeader c
 
 handleLogin ::
   Runtime info ->
@@ -120,7 +126,11 @@ handleLogin runtime attempt = do
         pure noHeader
       LoginSuccess dat -> do
         inc logins "ok" (counters runtime)
-        addHeader <$> makeLoggedInCookie runtime (userId dat)
+        cookie <- makeLoggedInCookie runtime (userId dat)
+        traceAugmentCookie runtime cookie
+        case cookie of
+          Left _ -> pure noHeader
+          Right c -> pure $ addHeader c
 
 handleRecoveryRequest :: Runtime info -> RecoveryRequest -> Handler RecoveryRequestNotification
 handleRecoveryRequest runtime req = do
