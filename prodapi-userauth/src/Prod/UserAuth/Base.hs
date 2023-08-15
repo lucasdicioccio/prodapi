@@ -55,7 +55,7 @@ loginjwtCookiePrefix = "login-jwt="
 
 instance ToHttpApiData LoggedInCookie where
   toUrlPiece (LoggedInCookie txt) =
-    mconcat [loginjwtCookiePrefix, txt, "; Path=/; SameSite=Strict; HttpOnly"]
+    mconcat [loginjwtCookiePrefix, txt, "; Path=/; SameSite=Strict; HttpOnly; Secure"]
 
 data WhoAmI info
   = WhoAmI
