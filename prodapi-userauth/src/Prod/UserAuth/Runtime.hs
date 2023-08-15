@@ -14,6 +14,7 @@ module Prod.UserAuth.Runtime
     AugmentCookieClaims,
     counters,
     secretstring,
+    baseClaimsSet,
     withConn,
     Connection,
     tokenValidityDuration,
@@ -29,6 +30,7 @@ module Prod.UserAuth.Runtime
     traceDisallowed,
     traceLimited,
     traceJWT,
+    traceJWTSigned,
     traceAugmentCookie,
   )
 where
@@ -48,6 +50,7 @@ data Runtime info
   = Runtime
       { counters :: !Counters,
         secretstring :: !Text,
+        baseClaimsSet :: !JWTClaimsSet,
         connstring :: !ByteString,
         augmentSession :: AugmentSession info,
         augmentWhoAmI :: AugmentWhoAmI info,
@@ -66,16 +69,18 @@ trace rt v = liftIO $ runTracer (tracer rt) $ v
 
 initRuntime
   :: Text
+  -> JWTClaimsSet
   -> ByteString
   -> AugmentSession info
   -> AugmentWhoAmI info
   -> AugmentCookieClaims
   -> Tracer IO (Track info)
   -> IO (Runtime info)
-initRuntime skret cstring augSession augWhoAmI augCookie tracer =
+initRuntime skret claims cstring augSession augWhoAmI augCookie tracer =
   Runtime
     <$> initCounters
     <*> pure skret
+    <*> pure claims
     <*> pure cstring
     <*> pure augSession
     <*> pure augWhoAmI
@@ -131,6 +136,10 @@ traceLimited runtime =
 traceJWT :: MonadIO m => (Runtime a) -> Maybe (JWT (VerifiedJWT)) -> m ()
 traceJWT runtime jwt =
   liftIO $ trace runtime $ Bearer $ Extracted jwt
+
+traceJWTSigned :: MonadIO m => (Runtime a) -> UserId -> [(Text,Value)] -> m ()
+traceJWTSigned runtime uid claims =
+  liftIO $ trace runtime $ Bearer $ Signed uid claims
 
 traceAugmentCookie :: MonadIO m => (Runtime a) -> Either ErrorMessage LoggedInCookie -> m ()
 traceAugmentCookie runtime c =

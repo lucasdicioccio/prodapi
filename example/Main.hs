@@ -167,6 +167,7 @@ logUserAuth = Tracer f
     f (Auth.Bearer (Auth.Allowed (Just True))) = print "ua: jwt-allow"
     f (Auth.Bearer (Auth.Allowed (Just False))) = print "ua: jwt-disallow"
     f (Auth.Bearer (Auth.Extracted jwt)) = print $ "ua: jwt:" <> show jwt
+    f (Auth.Bearer (Auth.Signed uid claims)) = print $ "ua: jwt-signed:" <> show (uid,claims)
     f (Auth.Backend Auth.SQLConnect) = print "ua: sql conn"
     f (Auth.Backend Auth.SQLTransaction) = print "ua: sql tx"
     f (Auth.Backend Auth.SQLRollback) = print "ua: sql tx"
@@ -195,7 +196,7 @@ main = do
   let augmentSession _ _ = pure $ Just $ Monitors.MyUserInfo "demo-info"
   let augmentWhoAmI _ _ = pure $ Just $ Monitors.MyUserInfo "demo-whoami"
   let augmentCookie _ = pure $ Right [("demo-roles", Aeson.toJSON ["superuser" :: Text])]
-  authRt <- Auth.initRuntime "secret-value" "postgres://prodapi:prodapi@localhost:5432/prodapi_example" augmentSession augmentWhoAmI augmentCookie (logUserAuth)
+  authRt <- Auth.initRuntime "secret-value" mempty "postgres://prodapi:prodapi@localhost:5432/prodapi_example" augmentSession augmentWhoAmI augmentCookie (logUserAuth)
   monitorsRt <- Monitors.initRuntime logMonitors authRt
   -- for demonstration purpose we initRuntime twice but there will be collisions on the metric name here
   -- most applications should either have a single ProdProxy runtime (possibly called with multiple 'ProdProxy.handle').

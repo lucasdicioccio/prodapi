@@ -1,6 +1,8 @@
 
 module Prod.UserAuth.Trace where
 
+import Data.Text (Text)
+import Data.Aeson (Value)
 import Data.ByteString (ByteString)
 import Prod.UserAuth.Base
 import Web.JWT
@@ -24,6 +26,7 @@ data BehaviourTrack info =
 data JwtTrack =
     Extracted (Maybe (JWT VerifiedJWT))
   | Allowed (Maybe Bool)
+  | Signed UserId [(Text,Value)]
 
 -- | Track backend sql information.
 data BackendTrack =
