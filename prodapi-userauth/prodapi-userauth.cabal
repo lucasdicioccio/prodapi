@@ -28,6 +28,7 @@ library
       Prod.UserAuth.JWT
       Prod.UserAuth.Runtime
       Prod.UserAuth.Trace
+      Prod.UserAuth.OAuth2
       Paths_prodapi_userauth
   default-extensions: OverloadedStrings DataKinds TypeApplications TypeOperators
   build-depends:       base >=4.13
