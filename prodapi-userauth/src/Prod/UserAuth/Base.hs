@@ -59,7 +59,7 @@ instance ToHttpApiData LoggedInCookie where
 
 data WhoAmI info
   = WhoAmI
-      { email :: Text
+      { email :: Maybe Text
       , info :: info
       }
   deriving (Generic)

@@ -69,17 +69,18 @@ finduser rt conn email = do
         AND enabled
     |]
 
-finduidMail :: Runtime a -> Connection -> UserId -> IO [Only Email]
+finduidMail :: Runtime a -> Connection -> UserId -> IO [(UserId, Maybe Email)]
 finduidMail rt conn uid = do
    trace rt . Backend . SQLQuery =<< formatQuery conn q (Only uid)
    query conn q (Only uid)
   where
     q =
       [sql|
-      SELECT email
-      FROM passwords
-      WHERE identity_id = ?
-        AND enabled
+      SELECT identities.id, passwords.email
+      FROM identities
+      LEFT JOIN passwords ON passwords.identity_id = identities.id
+      WHERE identities.id = ?
+        AND coalesce(true, passwords.enabled)
       LIMIT 1
     |]
 
@@ -211,8 +212,8 @@ whoAmIQueryIO rt uid = do
     emails <- finduidMail rt conn uid
     catMaybes <$> traverse (unwrapmail conn) emails
   where
-    unwrapmail :: Connection -> Only Email -> IO (Maybe (WhoAmI info))
-    unwrapmail conn (Only eml) = do
+    unwrapmail :: Connection -> (UserId, Maybe Email) -> IO (Maybe (WhoAmI info))
+    unwrapmail conn (uid, eml) = do
       info <- augmentWhoAmI rt conn (WhoAmI eml uid)
       case info of
         Just extra -> pure $ Just $ WhoAmI eml extra
