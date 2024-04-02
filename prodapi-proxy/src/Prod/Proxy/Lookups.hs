@@ -8,7 +8,7 @@ import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 import System.Random.Shuffle (shuffleM)
 
-import Prod.Health (Readiness(..))
+import Prod.Health (Readiness (..))
 import Prod.Proxy.Base
 
 -- | Lookup that always fails.
@@ -22,32 +22,32 @@ constBackend hp = const (pure $ Just hp)
 -- | Lookup the first backend among a generated list.
 firstBackend :: IO [(Host, Port)] -> LookupHostPort
 firstBackend disc =
-   const f
+    const f
   where
     f :: IO (Maybe (Host, Port))
     f = safeHead <$> disc
- 
+
     safeHead :: [a] -> Maybe a
-    safeHead (x:_) = Just x
-    safeHead _     = Nothing
+    safeHead (x : _) = Just x
+    safeHead _ = Nothing
 
 -- | Picks a random backend among a generated list.
-randomBackend :: IO [(Host,Port)] -> LookupHostPort
+randomBackend :: IO [(Host, Port)] -> LookupHostPort
 randomBackend disc = firstBackend (disc >>= shuffleM)
 
 -- | Fallbacks to the second lookup function if the first fails.
 fallback :: LookupHostPort -> LookupHostPort -> LookupHostPort
 fallback l1 l2 = \req -> do
-  o1 <- l1 req
-  case o1 of
-    Nothing -> l2 req
-    Just _ -> pure o1
+    o1 <- l1 req
+    case o1 of
+        Nothing -> l2 req
+        Just _ -> pure o1
 
 -- | Decorates successful lookups with an action.
-decorateSuccessWith :: ((Host,Port) -> IO ()) -> LookupHostPort -> LookupHostPort
+decorateSuccessWith :: ((Host, Port) -> IO ()) -> LookupHostPort -> LookupHostPort
 decorateSuccessWith f l1 = \req -> do
-  o1 <- l1 req
-  case o1 of
-    Nothing -> pure ()
-    Just hp -> f hp
-  pure o1
+    o1 <- l1 req
+    case o1 of
+        Nothing -> pure ()
+        Just hp -> f hp
+    pure o1

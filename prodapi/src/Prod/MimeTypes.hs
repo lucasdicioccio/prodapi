@@ -16,27 +16,26 @@ data PNG
 data SVG
 
 data GraphPictureData
-  = GraphPictureData
-      { graphvizInput :: !ByteString,
-        serializedPng :: (IO ByteString),
-        serializedSvg :: (IO ByteString)
-      }
+    = GraphPictureData
+    { graphvizInput :: !ByteString
+    , serializedPng :: (IO ByteString)
+    , serializedSvg :: (IO ByteString)
+    }
 
 instance Accept HTML where
-  contentType _ = "text" M.// "html" M./: ("charset", "utf-8")
-
+    contentType _ = "text" M.// "html" M./: ("charset", "utf-8")
 
 instance Accept PNG where
-  contentType _ = "image" M.// "png"
+    contentType _ = "image" M.// "png"
 
 instance MimeRender PNG GraphPictureData where
-  mimeRender _ = fromStrict . unsafePerformIO . serializedPng
+    mimeRender _ = fromStrict . unsafePerformIO . serializedPng
 
 instance MimeRender PlainText GraphPictureData where
-  mimeRender _ = fromStrict . graphvizInput
+    mimeRender _ = fromStrict . graphvizInput
 
 instance Accept SVG where
-  contentType _ = "image" M.// "svg"
+    contentType _ = "image" M.// "svg"
 
 instance MimeRender SVG GraphPictureData where
-  mimeRender _ = fromStrict . unsafePerformIO . serializedSvg
+    mimeRender _ = fromStrict . unsafePerformIO . serializedSvg
