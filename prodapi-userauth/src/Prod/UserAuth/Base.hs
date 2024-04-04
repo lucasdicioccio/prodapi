@@ -27,12 +27,16 @@ data ApplyRecoveryRequest
     , token :: TokenValue
     }
     deriving (Generic)
+instance Show ApplyRecoveryRequest where
+    showsPrec _ x = (\x -> "ApplyRecoveryRequest<hidden>" <> x)
 
 instance FromJSON ApplyRecoveryRequest
 instance FromForm ApplyRecoveryRequest
 
 data LoggedInCookie = LoggedInCookie {encodedJwt :: !Text}
     deriving (Generic)
+instance Show LoggedInCookie where
+    showsPrec _ x = (\x -> "LoggedInCookie<hidden>" <> x)
 
 instance ToJSON LoggedInCookie
 
@@ -73,11 +77,14 @@ data RegistrationRequest
     }
     deriving (Generic)
 
+instance Show RegistrationRequest where
+    showsPrec _ x = (\x -> "RegistrationRequest<hidden>" <> x)
+
 instance FromJSON RegistrationRequest
 instance FromForm RegistrationRequest
 
 data RegistrationResult a = RegisterSuccess (SessionData a) | RegisterFailure
-    deriving (Generic)
+    deriving (Generic, Show)
 
 instance (ToJSON a) => ToJSON (RegistrationResult a)
 
@@ -86,7 +93,7 @@ data SessionData a
     { userId :: UserId
     , info :: a
     }
-    deriving (Generic)
+    deriving (Generic, Show)
 
 instance (ToJSON a) => ToJSON (SessionData a)
 
@@ -99,6 +106,9 @@ data RecoveryRequest
     { email :: Text
     }
     deriving (Generic)
+
+instance Show RecoveryRequest where
+    showsPrec _ x = (\x -> "RecoveryRequest<hidden>" <> x)
 
 instance FromJSON RecoveryRequest
 instance FromForm RecoveryRequest
@@ -113,6 +123,9 @@ data RecoveryRequestNotification
 
 instance ToJSON RecoveryRequestNotification
 
+instance Show RecoveryRequestNotification where
+    showsPrec _ x = (\x -> "RecoveryRequestNotification<hidden>" <> x)
+
 data LoginAttempt
     = LoginAttempt
     { email :: Text
@@ -120,11 +133,14 @@ data LoginAttempt
     }
     deriving (Generic)
 
+instance Show LoginAttempt where
+    showsPrec _ x = (\x -> "LoginAttempt<hidden>" <> x)
+
 instance FromJSON LoginAttempt
 instance FromForm LoginAttempt
 
 data LoginResult a = LoginSuccess (SessionData a) | LoginFailed
-    deriving (Generic)
+    deriving (Generic, Show)
 
 instance (ToJSON a) => ToJSON (LoginResult a)
 
