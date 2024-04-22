@@ -5,10 +5,10 @@ cabal-version:       >=1.10
 
 name:                prodapi-proxy
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis: write an HTTP proxy with prodapi counters
+description: a library to write loadbalancers compatible with prodapi discovery and healthchecks
 -- bug-reports:
--- license:
+license: BSD3
 license-file:        LICENSE
 author:              Lucas DiCioccio
 maintainer:          lucas@dicioccio.fr
@@ -27,7 +27,7 @@ library
       Prod.Proxy.R
       Paths_prodapi_proxy
   default-extensions: OverloadedStrings DataKinds TypeApplications TypeOperators
-  build-depends:       base >=4.13,
+  build-depends:
     aeson >= 2.2.1 && < 2.3,
     base >= 4.19.1 && < 4.20,
     containers >= 0.6.8 && < 0.7,
