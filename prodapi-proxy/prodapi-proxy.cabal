@@ -13,7 +13,7 @@ license-file:        LICENSE
 author:              Lucas DiCioccio
 maintainer:          lucas@dicioccio.fr
 -- copyright:
--- category:
+category: System
 build-type:          Simple
 extra-source-files:  CHANGELOG.md
 
