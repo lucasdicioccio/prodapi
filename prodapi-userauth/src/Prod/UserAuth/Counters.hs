@@ -15,6 +15,7 @@ data Counters
     , logins :: Prometheus.Vector (Text) Prometheus.Counter
     , echoes :: Prometheus.Vector (Text) Prometheus.Counter
     , whoamis :: Prometheus.Vector (Text) Prometheus.Counter
+    , renewals :: Prometheus.Vector (Text) Prometheus.Counter
     , recoveryRequests :: Prometheus.Vector (Text) Prometheus.Counter
     , recoveryApplied :: Prometheus.Vector (Text) Prometheus.Counter
     }
@@ -26,6 +27,7 @@ initCounters =
         <*> statuses "userauth_logins" "number of logins recorded"
         <*> statuses "userauth_echoes" "number of token-echo recorded"
         <*> statuses "userauth_whoamis" "number of whoamis received"
+        <*> statuses "userauth_renewals" "number of renewals received"
         <*> statuses "userauth_recovery_requests" "number of recovery-requests received"
         <*> statuses "userauth_recovery_applied" "number of recovery-requests applied"
   where

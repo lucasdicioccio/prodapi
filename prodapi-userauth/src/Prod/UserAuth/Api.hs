@@ -20,6 +20,7 @@ type instance AuthServerData (AuthProtect "prod-user-auth") = UserAuthInfo
 type UserAuthApi a =
     EchoCookieClaimsApi
         :<|> WhoAmIApi a
+        :<|> RenewCookieApi
         :<|> CleanCookieApi
         :<|> RegisterApi a
         :<|> LoginApi a
@@ -33,6 +34,13 @@ type EchoCookieClaimsApi =
         :> "echo-cookie"
         :> Header "Cookie" LoggedInCookie
         :> Get '[JSON] JWTClaimsSet
+
+type RenewCookieApi =
+    Summary "renews a cookie"
+        :> "user-auth"
+        :> "renew"
+        :> Header "Cookie" LoggedInCookie
+        :> Post '[JSON] (Headers '[Header "Set-Cookie" LoggedInCookie] Text)
 
 type WhoAmIApi a =
     Summary "prints user identities for a cookie"
