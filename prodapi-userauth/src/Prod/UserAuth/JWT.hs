@@ -9,8 +9,10 @@ module Prod.UserAuth.JWT (
 where
 
 import Data.Aeson (FromJSON, Result (..), Value (Number), fromJSON)
+import Data.Fixed (E12, Fixed (..))
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import Data.Time.Clock (secondsToNominalDiffTime)
 import Data.Time.Clock.POSIX
 import Prod.UserAuth.Base
 import Prod.UserAuth.Runtime
@@ -47,19 +49,20 @@ The runtime allows augmenting the JWT with extra claims.
 -}
 makeLoggedInCookie :: Runtime a -> UserId -> IO (Either ErrorMessage LoggedInCookie)
 makeLoggedInCookie runtime uid = do
-    now <- numericDate <$> getPOSIXTime
-    case now of
+    tNow <- getPOSIXTime
+    let times = (,) <$> (numericDate tNow) <*> (numericDate $ tNow + secondsToNominalDiffTime 3600)
+    case times of
         Nothing -> pure $ Left "could not build a valid issued-at"
-        Just iat -> do
+        Just (iat, exp) -> do
             extras <- augmentLoggedInCookieClaims runtime uid
             case extras of
                 Left err -> pure $ Left err
                 Right vals -> do
                     traceJWTSigned runtime uid vals
-                    pure $ Right $ adapt iat vals
+                    pure $ Right $ adapt iat exp vals
   where
     baseClaims = baseClaimsSet runtime
-    adapt iat extras = do
+    adapt iat exp extras = do
         let claims = Map.fromList $ mconcat [[("user-id", (Number $ fromIntegral uid))], extras]
         LoggedInCookie $
             encodeSigned
@@ -68,6 +71,7 @@ makeLoggedInCookie runtime uid = do
                 ( baseClaims
                     { iss = stringOrURI "jwt-app"
                     , iat = Just iat
+                    , Web.JWT.exp = Just exp
                     , unregisteredClaims = ClaimsMap claims
                     }
                 )

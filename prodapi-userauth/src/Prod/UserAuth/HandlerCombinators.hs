@@ -8,8 +8,10 @@ module Prod.UserAuth.HandlerCombinators (
 )
 where
 
+import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (isJust)
 import Data.Text.Encoding (decodeLatin1)
+import Data.Time.Clock.POSIX
 import Network.Wai (Request, requestHeaders)
 import Prod.UserAuth.Base
 import Prod.UserAuth.JWT
@@ -21,6 +23,18 @@ import Servant.Server.Experimental.Auth (
     mkAuthHandler,
  )
 import Web.Cookie (parseCookies)
+import qualified Web.JWT
+
+verifyExpiryClaim :: Maybe (JWT a) -> IO (Maybe (JWT a))
+verifyExpiryClaim jwt = case fmap claims jwt >>= Web.JWT.exp of
+    Nothing -> pure Nothing -- no expiry
+    (Just expdate) -> do
+        now <- Web.JWT.numericDate <$> getPOSIXTime
+        case now of
+            Nothing -> pure Nothing -- could not get a current time
+            (Just nowdate)
+                | nowdate < expdate -> pure jwt -- there still is some time left
+                | otherwise -> pure Nothing -- expired
 
 authHandler :: Runtime a -> AuthHandler Request UserAuthInfo
 authHandler runtime = mkAuthHandler go
@@ -29,8 +43,9 @@ authHandler runtime = mkAuthHandler go
         let mCookies = fmap parseCookies $ lookup "cookie" $ requestHeaders req
         let jwtblob = fmap decodeLatin1 $ lookup "login-jwt" =<< mCookies
         let mJwt = decodeAndVerifySignature (toVerify . hmacSecret $ secretstring runtime) =<< jwtblob
-        traceJWT runtime mJwt
-        pure $ UserAuthInfo mJwt
+        validJwt <- liftIO $ verifyExpiryClaim mJwt
+        traceJWT runtime validJwt
+        pure $ UserAuthInfo validJwt
 
 authServerContext :: Runtime a -> Context (AuthHandler Request UserAuthInfo ': '[])
 authServerContext runtime =
@@ -58,8 +73,9 @@ withOptionalLoginCookieVerified ::
     Handler a
 withOptionalLoginCookieVerified runtime cookie act = do
     let mJwt = decodeAndVerifySignature (toVerify . hmacSecret $ secretstring runtime) =<< fmap encodedJwt cookie
-    traceOptionalVerification runtime (isJust mJwt)
-    act mJwt
+    validJwt <- liftIO $ verifyExpiryClaim mJwt
+    traceOptionalVerification runtime (isJust validJwt)
+    act validJwt
 
 authorized :: Runtime info -> UserAuthInfo -> (UserId -> Handler a) -> Handler a
 authorized rt auth act =
