@@ -50,6 +50,7 @@ handleUserAuth :: Runtime info -> Server (UserAuthApi info)
 handleUserAuth runtime =
     handleEchoCookieClaims runtime
         :<|> handleWhoAmI runtime
+        :<|> handleRenewCookie runtime
         :<|> handleCleanCookie
         :<|> handleRegister runtime
         :<|> handleLogin runtime
@@ -59,8 +60,33 @@ handleUserAuth runtime =
 
 handleEchoCookieClaims :: Runtime info -> Maybe LoggedInCookie -> Handler JWTClaimsSet
 handleEchoCookieClaims runtime cookie = do
-    inc echoes "requested" (counters runtime)
+    inc echoes "echoed" (counters runtime)
     withLoginCookieVerified runtime cookie (pure . claims)
+
+handleRenewCookie ::
+    Runtime info ->
+    Maybe LoggedInCookie ->
+    Handler (Headers '[Header "Set-Cookie" LoggedInCookie] Text)
+handleRenewCookie runtime cookie = do
+    inc echoes "renewed" (counters runtime)
+    withLoginCookieVerified runtime cookie $ \jwt -> do
+        let muid = Map.lookup "user-id" (unClaimsMap . unregisteredClaims $ claims jwt)
+        case muid of
+            Just (Number nid) -> do
+                inc renewals "valid" (counters runtime)
+                let uid = truncate nid :: UserId
+                cookie <- liftIO $ makeLoggedInCookie runtime uid
+                liftIO $ traceAugmentCookie runtime cookie
+                case cookie of
+                    Left _ -> do
+                        inc renewals "renew-failed" (counters runtime)
+                        throwError $ err500{errBody = "failed to renew cookie"}
+                    Right c -> do
+                        inc renewals "renew-ok" (counters runtime)
+                        pure $ addHeader c $ encodedJwt c
+            _ -> do
+                inc renewals "token-invalid" (counters runtime)
+                throwError $ err400{errBody = "this cookie is wrong"}
 
 handleWhoAmI :: Runtime info -> Maybe LoggedInCookie -> Handler [WhoAmI info]
 handleWhoAmI runtime cookie = do
