@@ -42,7 +42,7 @@ authHandler runtime = mkAuthHandler go
     go req = do
         let mCookies = fmap parseCookies $ lookup "cookie" $ requestHeaders req
         let jwtblob = fmap decodeLatin1 $ lookup "login-jwt" =<< mCookies
-        let mJwt = decodeAndVerifySignature (toVerify . hmacSecret $ secretstring runtime) =<< jwtblob
+        let mJwt = decodeAndVerifySignature (toVerify . EncodeHMACSecret $ secretstring runtime) =<< jwtblob
         validJwt <- liftIO $ verifyExpiryClaim mJwt
         traceJWT runtime validJwt
         pure $ UserAuthInfo validJwt
@@ -72,7 +72,7 @@ withOptionalLoginCookieVerified ::
     (Maybe (JWT VerifiedJWT) -> Handler a) ->
     Handler a
 withOptionalLoginCookieVerified runtime cookie act = do
-    let mJwt = decodeAndVerifySignature (toVerify . hmacSecret $ secretstring runtime) =<< fmap encodedJwt cookie
+    let mJwt = decodeAndVerifySignature (toVerify . EncodeHMACSecret $ secretstring runtime) =<< fmap encodedJwt cookie
     validJwt <- liftIO $ verifyExpiryClaim mJwt
     traceOptionalVerification runtime (isJust validJwt)
     act validJwt

@@ -48,7 +48,7 @@ import Web.JWT
 data Runtime info
     = Runtime
     { counters :: !Counters
-    , secretstring :: !Text
+    , secretstring :: !ByteString
     , baseClaimsSet :: !JWTClaimsSet
     , connstring :: !ByteString
     , augmentSession :: AugmentSession info
@@ -67,7 +67,7 @@ trace :: (MonadIO m) => Runtime a -> Track a -> m ()
 trace rt v = liftIO $ runTracer (tracer rt) $ v
 
 initRuntime ::
-    Text ->
+    ByteString ->
     JWTClaimsSet ->
     ByteString ->
     AugmentSession info ->

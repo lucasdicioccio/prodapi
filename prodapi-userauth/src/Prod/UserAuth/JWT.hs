@@ -66,7 +66,7 @@ makeLoggedInCookie runtime uid = do
         let claims = Map.fromList $ mconcat [[("user-id", (Number $ fromIntegral uid))], extras]
         LoggedInCookie $
             encodeSigned
-                (hmacSecret $ secretstring runtime)
+                (EncodeHMACSecret $ secretstring runtime)
                 mempty
                 ( baseClaims
                     { iss = stringOrURI "jwt-app"
