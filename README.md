@@ -156,6 +156,9 @@ are here have one of either reasons:
 - special case of watchdogs which touch a prometheus counter on success
 - special case of discoveries for background values that locate addresses (e.g., DNS lookups)
 
+## state machines
+- provides a simple Prod.Stepper module to define step-based executions (singly threaded for now)
+
 ## reverse proxying
 - minimal reverse-proxying wrapping [http-reverse-proxy](https://hackage.haskell.org/package/http-reverse-proxy)
 
