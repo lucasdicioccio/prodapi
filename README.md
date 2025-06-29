@@ -159,6 +159,10 @@ are here have one of either reasons:
 ## state machines
 - provides a simple Prod.Stepper module to define step-based executions (singly threaded for now)
 
+## Postgres interactions
+- provided in a package named `prodapi-pg`, a separate package provides helper to trace SQL queries
+- also provides a simple priority-based task queue based on Prod.Stepper, which enables making a resumable execution engine at low effort
+
 ## reverse proxying
 - minimal reverse-proxying wrapping [http-reverse-proxy](https://hackage.haskell.org/package/http-reverse-proxy)
 
