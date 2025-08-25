@@ -14,7 +14,7 @@ import Network.HTTP.ReverseProxy
 import Network.HTTP.Types.Status (status404)
 import qualified Network.Wai as Wai
 import qualified Prometheus as Prometheus
-import Servant
+import Servant hiding (Host)
 import Servant.Server
 
 type Api = ProxyRequestApi
