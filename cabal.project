@@ -1,7 +1,13 @@
+packages:
+  prodapi-core/
+  prodapi-web/
+  prodapi-proxy/
+  prodapi-userauth/
+  prodapi-pg/
+  prodapi-gen/
+  example/
 
-packages: prodapi/
-          prodapi-gen/
-          prodapi-pg/
-          prodapi-proxy/
-          prodapi-userauth/
-          example/
+-- Keep the original prodapi for comparison during transition
+-- Remove this line once migration is complete
+  prodapi/
+

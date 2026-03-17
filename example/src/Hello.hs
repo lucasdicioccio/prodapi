@@ -11,7 +11,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime)
 import qualified Prod.Background as Background
-import Prod.Discovery (Discovery, Host, dnsA, readCurrent, toMaybe)
+import Prod.Discovery (Discovery, Host)
 import qualified Prod.Discovery as Discovery
 import qualified Prod.Healthcheck as Healthcheck
 import Prod.Prometheus (timeIt)
@@ -19,7 +19,7 @@ import Prod.Tracer
 import Prod.Watchdog (Watchdog, WatchdogResult (..), basicWatchdog, fileTouchWatchdog)
 import qualified Prod.Watchdog
 import qualified Prometheus as Prometheus
-import Servant
+import Servant hiding (Host)
 import Servant.Server
 import System.Random (randomRIO)
 
@@ -82,7 +82,7 @@ data Runtime = Runtime
     }
 
 readDiscoveredHosts1 :: Runtime -> IO [Host]
-readDiscoveredHosts1 = fmap (fromMaybe [] . toMaybe) . readCurrent . discovery1
+readDiscoveredHosts1 = fmap (fromMaybe [] . Discovery.toMaybe) . Discovery.readCurrent . discovery1
 
 initRuntime :: T -> IO Runtime
 initRuntime tracer = do
@@ -94,8 +94,8 @@ initRuntime tracer = do
         <$> newCounters
         <*> helloWatchdog
         <*> fileTouchWatchdog "./example-prodapi-watchdog" silent 5000000
-        <*> dnsA (traceBoth discoveryTracker (healthCheckDiscoveredHosts "dyncioccio")) "laptop.dyn.dicioccio.fr"
-        <*> dnsA (traceBoth discoveryTracker (healthCheckDiscoveredHosts "service3")) "dicioccio.fr"
+        <*> Discovery.dnsA (traceBoth discoveryTracker (healthCheckDiscoveredHosts "dyncioccio")) "laptop.dyn.dicioccio.fr"
+        <*> Discovery.dnsA (traceBoth discoveryTracker (healthCheckDiscoveredHosts "service3")) "dicioccio.fr"
         <*> pure healthchecker
   where
     port80 hosts = [(host, 80) | host <- hosts]
@@ -105,3 +105,4 @@ serve runtime = do
     liftIO $ timeIt helloes (counters runtime) $ do
         threadDelay =<< randomRIO (100, 10000)
         pure "hello world"
+

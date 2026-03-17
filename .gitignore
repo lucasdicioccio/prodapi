@@ -1,0 +1,9 @@
+agents-logfile
+dist-newstyle/
+
+# agents-exe verbose logs (added by agq init-queue)
+logs.json
+conv.*.json
+
+# agent notes
+.agent-notes.db-shm
