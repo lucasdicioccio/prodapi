@@ -43,7 +43,7 @@ import Data.Foldable (traverse_)
 import GHC.Generics (Generic)
 import Lucid (HtmlT, ToHtml (..), a_, action_, div_, for_, form_, h4_, href_, id_, input_, label_, li_, method_, name_, p_, type_, ul_, value_, with)
 
-import qualified Paths_prodapi
+import qualified Paths_prodapi_web
 import System.IO (stderr, stdout)
 
 -- simulate backend services
@@ -211,7 +211,7 @@ main = do
             appWithContext
                 init
                 (exampleStatus helloRt monitorsRt)
-                (statusPage <> versionsSection [("prodapi", Paths_prodapi.version)] <> Auth.renderStatus <> metricsSection "metrics.js")
+                (statusPage <> versionsSection [("prodapi-web", Paths_prodapi_web.version)] <> Auth.renderStatus <> metricsSection "metrics.js")
                 ( Hello.serve helloRt
                     :<|> ProdProxy.handle proxiedRt
                     :<|> Monitors.handle monitorsRt
@@ -243,3 +243,4 @@ hostPortForDiscovered helloRt disc ns =
     adapt (Discovery.Found _ hps) = fmap toHP hps
     adapt _ = []
     toHP h = (Text.encodeUtf8 h, 80)
+
