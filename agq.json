@@ -1,0 +1,30 @@
+{
+    "agentAttempts": 1,
+    "agents": {
+        "default": "agents/oneshot.json",
+        "documenter": "agents/documenter.json"
+    },
+    "baseBranch": "main",
+    "defaultTries": 3,
+    "githubUsername": "lucasdicioccio",
+    "hookTimeoutSeconds": 300,
+    "hooks": {
+        "--default": "git-agent-task.sh"
+    },
+    "labels": {
+        "labelAgentPr": "agq/agent-pr",
+        "labelArbitrageNeeded": "agq/arbitrage-needed",
+        "labelDoneInBranch": "agq/done-in-branch",
+        "labelTaken": "agq/taken",
+        "labelToBeTaken": "agq/to-be-taken",
+        "labelWait": "agq/wait"
+    },
+    "lockStaleSeconds": 7200,
+    "pollSeconds": 30,
+    "projects": {
+        "root": "."
+    },
+    "queueDb": "tasks/agq.db",
+    "sessionsDir": "tasks-sessions",
+    "taskDir": "tasks"
+}

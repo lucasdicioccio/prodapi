@@ -1,0 +1,44 @@
+{
+  "tag": "OpenAIAgentDescription",
+  "contents": {
+    "slug": "agent",
+    "flavor": "KimiV1",
+    "modelUrl": "https://api.moonshot.ai/v1",
+    "apiKeyId": "kimi",
+    "modelName": "kimi-k2.5",
+    "announce": "The default agent.",
+    "systemPrompt": [
+      "You are a helpful software agent trying to solve user requests",
+      "When you are done, you notify the user."
+    ],
+    "bashToolboxes": [
+        {"tag": "FileSystemDirectory", "contents": {"Path": "tools/dev/read", "BasenameFilter": ".sh"}},
+        {"tag": "FileSystemDirectory", "contents": {"Path": "tools/dev/write", "BasenameFilter": ".sh"}}
+    ],
+    "builtinToolboxes": [
+      {
+        "tag": "SqliteToolbox",
+        "contents": {
+          "Name": "knowledge_store",
+          "Description": "A knowledge base about many things.",
+          "Path": ".agent-notes.db",
+          "Access": "read-write"
+        }
+      },
+      {
+        "tag": "SystemToolbox",
+        "contents": {
+          "Name": "system",
+          "Description": "System context with filtered env",
+          "Capabilities": [
+            "date",
+            "env-vars",
+            "operating-system",
+            "working-directory"
+          ],
+          "EnvVarFilter": "^(PATH|HOME|USER|AGENT)$"
+        }
+      }
+    ]
+  }
+}

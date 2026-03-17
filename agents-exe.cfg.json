@@ -1,0 +1,8 @@
+{ "agentsDirectories":["./agents"]
+, "agentsFiles":[]
+, "agentsLogs": {
+    "--disabled--logJsonPath": "logs.json"
+  }
+, "selfDescribeSlug": "root-project-agent"
+, "selfDescribeDescription": "the root project agent"
+}
