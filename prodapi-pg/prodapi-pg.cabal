@@ -24,9 +24,10 @@ version:            0.1.0.0
 
 -- A short (one-line) description of the package.
 -- synopsis:
+synopsis: ProdAPI wrappers for postgresql-simple.
 
 -- A longer description of the package.
--- description:
+description: Provides ProdAPI-style tracing around postgresql-simple.
 
 -- The license under which the package is released.
 license:            Apache-2.0
