@@ -27,6 +27,8 @@ library
       Prod.Status
       Prod.Watchdog
       Paths_prodapi_web
+  autogen-modules:
+      Paths_prodapi_web
   reexported-modules:
       Prod.Tracer as Prod.Tracer,
       Prod.Background as Prod.Background,
