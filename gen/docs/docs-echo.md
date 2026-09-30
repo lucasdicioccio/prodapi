@@ -1,4 +1,3 @@
-Up to date
 ## POST /echo/example
 
 ### returns the input
@@ -13,7 +12,7 @@ Up to date
 
 - hello world, not that the Echo API is parametrizable, this doc line is an instantiated example (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"helloWorld":"hello prodapi"}
 ```
 
@@ -29,7 +28,7 @@ Up to date
 
 - hello world, not that the Echo API is parametrizable, this doc line is an instantiated example (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"helloWorld":"hello prodapi"}
 ```
 

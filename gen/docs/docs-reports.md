@@ -1,4 +1,3 @@
-Up to date
 ## POST /reports
 
 ### receives and acknowledge some reports
@@ -13,8 +12,8 @@ Up to date
 
 - an example of stack-trace reporting (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
-{"es":[{"stackTrace":["err toto.js at 236: undefined is not a function"]}],"t":1611183428,"b":0}
+```json
+{"b":0,"es":[{"stackTrace":["err toto.js at 236: undefined is not a function"]}],"t":1611183428}
 ```
 
 ### Response:
@@ -29,7 +28,7 @@ Up to date
 
 - an example integer (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 42
 ```
 

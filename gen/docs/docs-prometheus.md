@@ -1,4 +1,3 @@
-Up to date
 ## GET /metrics
 
 ### Prometheus metrics
@@ -7,7 +6,7 @@ Up to date
 ### Response:
 
 - Status code 200
-- Headers: []
+- Headers: [("Access-Control-Allow-Origin","<no header sample provided>")]
 
 - Supported content types are:
 

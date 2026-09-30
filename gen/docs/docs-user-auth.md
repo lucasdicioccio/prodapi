@@ -1,4 +1,3 @@
-Up to date
 ## POST /user-auth/clean-cookie
 
 ### deletes the cookie
@@ -7,7 +6,7 @@ Up to date
 ### Response:
 
 - Status code 200
-- Headers: [("Set-Cookie","login-jwt=login-jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJqd3QtYXBwIiwidXNlci1pZCI6NH0.v88HCeDuNsk83umM291-2JT6kgnHYSczld9oU3TnI0s; Path=/; SameSite=Strict; HttpOnly; Path=/; SameSite=Strict; HttpOnly")]
+- Headers: [("Set-Cookie","login-jwt=login-jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJqd3QtYXBwIiwidXNlci1pZCI6NH0.v88HCeDuNsk83umM291-2JT6kgnHYSczld9oU3TnI0s; Path=/; SameSite=Strict; HttpOnly; Path=/; SameSite=Strict; HttpOnly; Secure")]
 
 - Supported content types are:
 
@@ -16,7 +15,7 @@ Up to date
 
 - the unit type, representing an absence of return value (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 []
 ```
 
@@ -41,7 +40,7 @@ Up to date
 
 - some claims set with issuer etc. (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"iss":"issuer","sub":"..."}
 ```
 
@@ -62,7 +61,7 @@ Up to date
 
 - some arbitrary text (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 "lorem ipsum"
 ```
 
@@ -87,14 +86,14 @@ email=foo%40example.com&plain=secret
 
 - temptative login (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"email":"foo@example.com","plain":"secret"}
 ```
 
 ### Response:
 
 - Status code 200
-- Headers: [("Set-Cookie","login-jwt=login-jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJqd3QtYXBwIiwidXNlci1pZCI6NH0.v88HCeDuNsk83umM291-2JT6kgnHYSczld9oU3TnI0s; Path=/; SameSite=Strict; HttpOnly; Path=/; SameSite=Strict; HttpOnly")]
+- Headers: [("Set-Cookie","login-jwt=login-jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJqd3QtYXBwIiwidXNlci1pZCI6NH0.v88HCeDuNsk83umM291-2JT6kgnHYSczld9oU3TnI0s; Path=/; SameSite=Strict; HttpOnly; Path=/; SameSite=Strict; HttpOnly; Secure")]
 
 - Supported content types are:
 
@@ -103,13 +102,13 @@ email=foo%40example.com&plain=secret
 
 - sucessful login with user id 1234 (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"contents":{"info":"the robot","userId":1234},"tag":"LoginSuccess"}
 ```
 
 - failed login (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"tag":"LoginFailed"}
 ```
 
@@ -134,7 +133,7 @@ email=foo%40example.com&plain=new-password&token=secret%20token%20received%20out
 
 - apply a token received out of bound (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"email":"foo@example.com","plain":"new-password","token":"secret token received out of bound"}
 ```
 
@@ -150,13 +149,13 @@ email=foo%40example.com&plain=new-password&token=secret%20token%20received%20out
 
 - successfully changed pass (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"tag":"RecoverySuccess"}
 ```
 
 - failed to change pass (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"contents":"some reason","tag":"RecoveryFailed"}
 ```
 
@@ -181,7 +180,7 @@ email=foo%40example.com
 
 - recovery request (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"email":"foo@example.com"}
 ```
 
@@ -197,7 +196,7 @@ email=foo%40example.com
 
 - recovery request notification valid for 60minutes (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"email":"foo@example.com","minutes":60,"token":"random-bytes"}
 ```
 
@@ -222,14 +221,14 @@ email=foo%40example.com&plain=my%20desired%20pass
 
 - some registration (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"email":"foo@example.com","plain":"my desired pass"}
 ```
 
 ### Response:
 
 - Status code 200
-- Headers: [("Set-Cookie","login-jwt=login-jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJqd3QtYXBwIiwidXNlci1pZCI6NH0.v88HCeDuNsk83umM291-2JT6kgnHYSczld9oU3TnI0s; Path=/; SameSite=Strict; HttpOnly; Path=/; SameSite=Strict; HttpOnly")]
+- Headers: [("Set-Cookie","login-jwt=login-jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJqd3QtYXBwIiwidXNlci1pZCI6NH0.v88HCeDuNsk83umM291-2JT6kgnHYSczld9oU3TnI0s; Path=/; SameSite=Strict; HttpOnly; Path=/; SameSite=Strict; HttpOnly; Secure")]
 
 - Supported content types are:
 
@@ -238,14 +237,39 @@ email=foo%40example.com&plain=my%20desired%20pass
 
 - successful registration with user id 1234 (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"contents":{"info":"the robot","userId":1234},"tag":"RegisterSuccess"}
 ```
 
 - failed registration (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"tag":"RegisterFailure"}
+```
+
+## POST /user-auth/renew
+
+### renews a cookie
+
+
+### Headers:
+
+- This endpoint is sensitive to the value of the **Cookie** HTTP header.
+
+### Response:
+
+- Status code 200
+- Headers: [("Set-Cookie","login-jwt=login-jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJqd3QtYXBwIiwidXNlci1pZCI6NH0.v88HCeDuNsk83umM291-2JT6kgnHYSczld9oU3TnI0s; Path=/; SameSite=Strict; HttpOnly; Path=/; SameSite=Strict; HttpOnly; Secure")]
+
+- Supported content types are:
+
+    - `application/json;charset=utf-8`
+    - `application/json`
+
+- some arbitrary text (`application/json;charset=utf-8`, `application/json`):
+
+```json
+"lorem ipsum"
 ```
 
 ## GET /user-auth/whoami
@@ -269,19 +293,19 @@ email=foo%40example.com&plain=my%20desired%20pass
 
 - Example (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 []
 ```
 
 - i am a robot (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 [{"email":"a robot","info":"with some metal head"}]
 ```
 
 - i am a robot, i am a robot (`application/json;charset=utf-8`):
 
-```javascript
+```json
 [{"email":"a robot","info":"with some metal head"},{"email":"a robot","info":"with some metal head"}]
 ```
 

@@ -1,4 +1,3 @@
-Up to date
 ## GET /health/alive
 
 ### Health liveness probe.
@@ -16,7 +15,7 @@ Up to date
 
 - an application is alive if it can returns some string, hence there is a single value possible (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 "alive"
 ```
 
@@ -37,14 +36,14 @@ Up to date
 
 - ready to serve requests (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"tag":"Ready"}
 ```
 
 - should not be serving requests for _some reason_ (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
-{"tag":"Ill","contents":["some reason"]}
+```json
+{"contents":["some reason"],"tag":"Ill"}
 ```
 
 ## GET /health/ready
@@ -64,14 +63,14 @@ Up to date
 
 - ready to serve requests (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
+```json
 {"tag":"Ready"}
 ```
 
 - should not be serving requests for _some reason_ (`application/json;charset=utf-8`, `application/json`):
 
-```javascript
-{"tag":"Ill","contents":["some reason"]}
+```json
+{"contents":["some reason"],"tag":"Ill"}
 ```
 
 
