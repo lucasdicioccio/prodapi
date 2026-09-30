@@ -4,7 +4,7 @@ cabal-version:       >=1.10
 -- http://haskell.org/cabal/users-guide/
 
 name:                prodapi-proxy
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis: write an HTTP proxy with prodapi counters
 description: a library to write loadbalancers compatible with prodapi discovery and healthchecks
 -- bug-reports:

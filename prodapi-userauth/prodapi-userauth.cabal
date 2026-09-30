@@ -4,7 +4,7 @@ cabal-version:       >=1.10
 -- http://haskell.org/cabal/users-guide/
 
 name:                prodapi-userauth
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis: a base lib for performing user-authentication in prodapi services
 description: implements basic bricks for password, oauth2 authentification of user identities
 -- bug-reports:
